@@ -28,6 +28,46 @@ class CasPageController extends Controller
         return Inertia::render('cas/Suppliers');
     }
 
+    public function branches(): Response
+    {
+        return Inertia::render('cas/Branches');
+    }
+
+    public function inventory(): Response
+    {
+        return Inertia::render('cas/Inventory');
+    }
+
+    public function sales(): Response
+    {
+        return Inertia::render('cas/Sales');
+    }
+
+    public function collections(): Response
+    {
+        return Inertia::render('cas/Collections');
+    }
+
+    public function purchases(): Response
+    {
+        return Inertia::render('cas/Purchases');
+    }
+
+    public function hr(): Response
+    {
+        return Inertia::render('cas/HR');
+    }
+
+    public function payroll(): Response
+    {
+        return Inertia::render('cas/Payroll');
+    }
+
+    public function banking(): Response
+    {
+        return Inertia::render('cas/Banking');
+    }
+
     public function journals(): Response
     {
         return Inertia::render('cas/Journals');

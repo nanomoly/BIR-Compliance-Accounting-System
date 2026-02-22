@@ -3,6 +3,7 @@ import { Head } from '@inertiajs/vue3';
 import { reactive } from 'vue';
 import SectionCard from '@/components/cas/SectionCard.vue';
 import { useCasApi } from '@/composables/useCasApi';
+import { useStateNotifications } from '@/composables/useStateNotifications';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem } from '@/types';
 
@@ -25,6 +26,8 @@ const state = reactive({
     loading: false,
     error: '',
 });
+
+useStateNotifications(state);
 
 async function loadLedger() {
     state.loading = true;
@@ -109,7 +112,6 @@ async function loadLedger() {
             </SectionCard>
 
             <p v-if="state.loading" class="text-sm text-muted-foreground">Loading...</p>
-            <p v-if="state.error" class="text-sm text-destructive">{{ state.error }}</p>
         </div>
     </AppLayout>
 </template>

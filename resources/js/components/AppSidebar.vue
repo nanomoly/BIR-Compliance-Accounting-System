@@ -3,11 +3,22 @@ import { Link } from '@inertiajs/vue3';
 import { usePage } from '@inertiajs/vue3';
 import {
     BookOpen,
+    BookOpenText,
+    Building2,
+    Check,
+    Copy,
     Database,
     FileSearch,
     FileSpreadsheet,
+    Folder,
     LayoutGrid,
+    Menu,
+    Monitor,
     ReceiptText,
+    ScanLine,
+    Search,
+    Settings,
+    ShieldBan,
     NotebookPen,
     Users,
     ShieldCheck,
@@ -39,6 +50,15 @@ const coreNavItems: SidebarNavItem[] = [
         href: '/cas',
         icon: LayoutGrid,
     },
+];
+
+const setupNavItems: SidebarNavItem[] = [
+    {
+        title: 'Branches',
+        href: '/cas/branches',
+        icon: Building2,
+        requiredPermission: 'branches.view',
+    },
     {
         title: 'Chart of Accounts',
         href: '/cas/accounts',
@@ -54,18 +74,57 @@ const coreNavItems: SidebarNavItem[] = [
     {
         title: 'Suppliers',
         href: '/cas/suppliers',
-        icon: Users,
+        icon: Folder,
         requiredPermission: 'suppliers.view',
     },
     {
-        title: 'Ledgers',
-        href: '/cas/ledgers',
-        icon: BookOpen,
-        requiredPermission: 'ledgers.view',
+        title: 'HR',
+        href: '/cas/hr',
+        icon: ShieldBan,
+        requiredPermission: 'hr.view',
     },
 ];
 
-const transactionNavItems: SidebarNavItem[] = [
+const operationsNavItems: SidebarNavItem[] = [
+    {
+        title: 'Inventory',
+        href: '/cas/inventory',
+        icon: BookOpen,
+        requiredPermission: 'inventory.view',
+    },
+    {
+        title: 'Sales Orders',
+        href: '/cas/sales',
+        icon: ReceiptText,
+        requiredPermission: 'sales.view',
+    },
+    {
+        title: 'Collections',
+        href: '/cas/collections',
+        icon: BookOpenText,
+        requiredPermission: 'collections.view',
+    },
+    {
+        title: 'Purchase Orders',
+        href: '/cas/purchases',
+        icon: FileSearch,
+        requiredPermission: 'purchases.view',
+    },
+    {
+        title: 'Payroll',
+        href: '/cas/payroll',
+        icon: Check,
+        requiredPermission: 'payroll.view',
+    },
+    {
+        title: 'Banking',
+        href: '/cas/banking',
+        icon: Database,
+        requiredPermission: 'banking.view',
+    },
+];
+
+const accountingNavItems: SidebarNavItem[] = [
     {
         title: 'Journals',
         href: '/cas/journals',
@@ -75,12 +134,15 @@ const transactionNavItems: SidebarNavItem[] = [
     {
         title: 'E-Invoicing',
         href: '/cas/e-invoicing',
-        icon: ReceiptText,
+        icon: Copy,
         requiredPermission: 'e_invoices.view',
     },
-];
-
-const reportNavItems: SidebarNavItem[] = [
+    {
+        title: 'Ledgers',
+        href: '/cas/ledgers',
+        icon: ScanLine,
+        requiredPermission: 'ledgers.view',
+    },
     {
         title: 'Reports',
         href: '/cas/reports',
@@ -91,15 +153,21 @@ const reportNavItems: SidebarNavItem[] = [
 
 const complianceNavItems: SidebarNavItem[] = [
     {
+        title: 'User Access',
+        href: '/cas/user-access',
+        icon: Settings,
+        requiredPermission: 'user_access.view',
+    },
+    {
         title: 'System Users',
         href: '/cas/users',
-        icon: Users,
+        icon: Menu,
         requiredPermission: 'users.view',
     },
     {
         title: 'Backups',
         href: '/cas/backups',
-        icon: Database,
+        icon: Monitor,
         requiredPermission: 'backups.view',
     },
     {
@@ -109,15 +177,9 @@ const complianceNavItems: SidebarNavItem[] = [
         requiredPermission: 'system_info.view',
     },
     {
-        title: 'User Access',
-        href: '/cas/user-access',
-        icon: Users,
-        requiredPermission: 'user_access.view',
-    },
-    {
         title: 'Audit Trail',
         href: '/cas/audit-trail',
-        icon: FileSearch,
+        icon: Search,
         requiredPermission: 'audit_trail.view',
     },
 ];
@@ -142,10 +204,15 @@ function filterByPermission(items: SidebarNavItem[]): NavItem[] {
 }
 
 const visibleCoreNavItems = computed(() => filterByPermission(coreNavItems));
-const visibleTransactionNavItems = computed(() =>
-    filterByPermission(transactionNavItems),
+const visibleSetupNavItems = computed(() =>
+    filterByPermission(setupNavItems),
 );
-const visibleReportNavItems = computed(() => filterByPermission(reportNavItems));
+const visibleOperationsNavItems = computed(() =>
+    filterByPermission(operationsNavItems),
+);
+const visibleAccountingNavItems = computed(() =>
+    filterByPermission(accountingNavItems),
+);
 const visibleComplianceNavItems = computed(() =>
     filterByPermission(complianceNavItems),
 );
@@ -166,17 +233,26 @@ const visibleComplianceNavItems = computed(() =>
         </SidebarHeader>
 
         <SidebarContent>
-            <NavMain v-if="visibleCoreNavItems.length > 0" :items="visibleCoreNavItems" label="Core" />
+            <NavMain v-if="visibleCoreNavItems.length > 0" :items="visibleCoreNavItems" label="Overview" />
             <NavMain
-                v-if="visibleTransactionNavItems.length > 0"
-                :items="visibleTransactionNavItems"
-                label="Transactions"
+                v-if="visibleSetupNavItems.length > 0"
+                :items="visibleSetupNavItems"
+                label="Setup"
             />
-            <NavMain v-if="visibleReportNavItems.length > 0" :items="visibleReportNavItems" label="Reports" />
+            <NavMain
+                v-if="visibleOperationsNavItems.length > 0"
+                :items="visibleOperationsNavItems"
+                label="Operations"
+            />
+            <NavMain
+                v-if="visibleAccountingNavItems.length > 0"
+                :items="visibleAccountingNavItems"
+                label="Accounting"
+            />
             <NavMain
                 v-if="visibleComplianceNavItems.length > 0"
                 :items="visibleComplianceNavItems"
-                label="Compliance"
+                label="Administration"
             />
         </SidebarContent>
 

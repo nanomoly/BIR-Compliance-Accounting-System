@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
-import { reactive } from 'vue';
+import { onMounted, reactive } from 'vue';
 import SectionCard from '@/components/cas/SectionCard.vue';
 import { useCasApi } from '@/composables/useCasApi';
+import { useStateNotifications } from '@/composables/useStateNotifications';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem, CasReportFormat } from '@/types';
 
@@ -13,14 +14,21 @@ const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Reports', href: '/cas/reports' },
 ];
 
+type Branch = {
+    id: number;
+    code: string;
+    name: string;
+};
+
 const state = reactive({
+    branches: [] as Branch[],
     reportType: 'trial-balance',
     from_date: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
         .toISOString()
         .slice(0, 10),
     to_date: new Date().toISOString().slice(0, 10),
     period: 'monthly' as 'monthly' | 'quarterly' | 'annually',
-    branch_id: 1,
+    branch_id: 0,
     format: 'json' as CasReportFormat,
     rows: [] as Array<Record<string, unknown>>,
     referenceNumber: '',
@@ -28,6 +36,17 @@ const state = reactive({
     loading: false,
     error: '',
 });
+
+useStateNotifications(state);
+
+async function loadBranches() {
+    try {
+        const response = await api.get<{ data: Branch[] }>('/api/branches?per_page=500');
+        state.branches = response.data;
+    } catch {
+        state.branches = [];
+    }
+}
 
 async function runReport() {
     state.loading = true;
@@ -40,7 +59,7 @@ async function runReport() {
             const url = api.reportUrl(endpoint, {
                 from_date: state.from_date,
                 to_date: state.to_date,
-                branch_id: state.branch_id,
+                branch_id: state.branch_id || undefined,
                 period: state.period,
                 format: 'json',
             });
@@ -60,7 +79,7 @@ async function runReport() {
         const downloadUrl = api.reportUrl(endpoint, {
             from_date: state.from_date,
             to_date: state.to_date,
-            branch_id: state.branch_id,
+            branch_id: state.branch_id || undefined,
             period: state.period,
             format: state.format,
         });
@@ -75,6 +94,8 @@ async function runReport() {
         state.loading = false;
     }
 }
+
+onMounted(loadBranches);
 </script>
 
 <template>
@@ -114,6 +135,12 @@ async function runReport() {
                         <option value="quarterly">Quarterly</option>
                         <option value="annually">Annually</option>
                     </select>
+                    <select v-model.number="state.branch_id" class="rounded border px-3 py-2 text-sm">
+                        <option :value="0">All Branches</option>
+                        <option v-for="branch in state.branches" :key="branch.id" :value="branch.id">
+                            {{ branch.code }} - {{ branch.name }}
+                        </option>
+                    </select>
                     <select v-model="state.format" class="rounded border px-3 py-2 text-sm">
                         <option value="json">JSON Preview</option>
                         <option value="pdf">PDF Export</option>
@@ -152,7 +179,6 @@ async function runReport() {
             </SectionCard>
 
             <p v-if="state.loading" class="text-sm text-muted-foreground">Generating report...</p>
-            <p v-if="state.error" class="text-sm text-destructive">{{ state.error }}</p>
         </div>
     </AppLayout>
 </template>

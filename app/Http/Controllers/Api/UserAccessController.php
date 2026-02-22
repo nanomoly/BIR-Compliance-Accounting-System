@@ -36,6 +36,7 @@ class UserAccessController extends Controller
                 'name' => $user->name,
                 'email' => $user->email,
                 'has_access' => $user->roles_count > 0 || $user->permissions_count > 0,
+                'is_default_admin' => $this->accessControlService->isDefaultCasAdmin($user),
             ])
             ->values()
             ->all();

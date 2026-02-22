@@ -24,6 +24,14 @@ Route::middleware(['auth', 'verified'])->prefix('cas')->group(function (): void 
     Route::get('/accounts', [CasPageController::class, 'accounts'])->middleware('can:accounts.view')->name('cas.accounts');
     Route::get('/customers', [CasPageController::class, 'customers'])->middleware('can:customers.view')->name('cas.customers');
     Route::get('/suppliers', [CasPageController::class, 'suppliers'])->middleware('can:suppliers.view')->name('cas.suppliers');
+    Route::get('/branches', [CasPageController::class, 'branches'])->middleware('can:branches.view')->name('cas.branches');
+    Route::get('/inventory', [CasPageController::class, 'inventory'])->middleware('can:inventory.view')->name('cas.inventory');
+    Route::get('/sales', [CasPageController::class, 'sales'])->middleware('can:sales.view')->name('cas.sales');
+    Route::get('/collections', [CasPageController::class, 'collections'])->middleware('can:collections.view')->name('cas.collections');
+    Route::get('/purchases', [CasPageController::class, 'purchases'])->middleware('can:purchases.view')->name('cas.purchases');
+    Route::get('/hr', [CasPageController::class, 'hr'])->middleware('can:hr.view')->name('cas.hr');
+    Route::get('/payroll', [CasPageController::class, 'payroll'])->middleware('can:payroll.view')->name('cas.payroll');
+    Route::get('/banking', [CasPageController::class, 'banking'])->middleware('can:banking.view')->name('cas.banking');
     Route::get('/journals', [CasPageController::class, 'journals'])->middleware('can:journals.view')->name('cas.journals');
     Route::get('/e-invoicing', [CasPageController::class, 'eInvoicing'])->middleware('can:e_invoices.view')->name('cas.e-invoicing');
     Route::get('/reports', [CasPageController::class, 'reports'])->middleware('can:reports.view')->name('cas.reports');

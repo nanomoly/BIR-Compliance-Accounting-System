@@ -2,7 +2,9 @@
 import { Head } from '@inertiajs/vue3';
 import { onMounted, reactive } from 'vue';
 import SectionCard from '@/components/cas/SectionCard.vue';
+import { useAuthPermissions } from '@/composables/useAuthPermissions';
 import { useCasApi } from '@/composables/useCasApi';
+import { useStateNotifications } from '@/composables/useStateNotifications';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem } from '@/types';
 
@@ -25,6 +27,7 @@ type SupplierItem = {
 };
 
 const api = useCasApi();
+const { can } = useAuthPermissions();
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'CAS Dashboard', href: '/cas' },
@@ -34,12 +37,23 @@ const breadcrumbs: BreadcrumbItem[] = [
 const state = reactive({
     suppliers: [] as SupplierItem[],
     branches: [] as BranchOption[],
+    exportFromDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+        .toISOString()
+        .slice(0, 10),
+    exportToDate: new Date().toISOString().slice(0, 10),
+    currentPage: 1,
+    lastPage: 1,
+    perPage: 15,
+    total: 0,
     loading: false,
     saving: false,
+    deleting: false,
     editingId: 0,
     error: '',
     success: '',
 });
+
+useStateNotifications(state);
 
 const form = reactive({
     code: '',
@@ -60,17 +74,27 @@ const editForm = reactive({
     phone: '',
 });
 
-async function loadData() {
+async function loadData(page = 1) {
     state.loading = true;
     state.error = '';
 
     try {
         const [suppliersResponse, catalogResponse] = await Promise.all([
-            api.get<{ data: SupplierItem[] }>('/api/suppliers?per_page=100'),
+            api.get<{
+                data: SupplierItem[];
+                current_page: number;
+                last_page: number;
+                per_page: number;
+                total: number;
+            }>(`/api/suppliers?per_page=${state.perPage}&page=${page}`),
             api.get<{ branches: BranchOption[] }>('/api/suppliers/catalog'),
         ]);
 
         state.suppliers = suppliersResponse.data;
+        state.currentPage = suppliersResponse.current_page;
+        state.lastPage = suppliersResponse.last_page;
+        state.perPage = suppliersResponse.per_page;
+        state.total = suppliersResponse.total;
         state.branches = catalogResponse.branches;
     } catch (error) {
         state.error =
@@ -82,7 +106,20 @@ async function loadData() {
     }
 }
 
+function exportSuppliers() {
+    const query = new URLSearchParams({
+        from_date: state.exportFromDate,
+        to_date: state.exportToDate,
+    });
+
+    window.open(`/api/exports/suppliers?${query.toString()}`, '_blank');
+}
+
 async function createSupplier() {
+    if (!can('suppliers.create')) {
+        return;
+    }
+
     state.saving = true;
     state.error = '';
     state.success = '';
@@ -107,7 +144,7 @@ async function createSupplier() {
         form.email = '';
         form.phone = '';
 
-        await loadData();
+        await loadData(state.currentPage);
     } catch (error) {
         state.error =
             error instanceof Error
@@ -133,6 +170,10 @@ function cancelEdit() {
 }
 
 async function saveEdit(supplierId: number) {
+    if (!can('suppliers.update')) {
+        return;
+    }
+
     state.saving = true;
     state.error = '';
     state.success = '';
@@ -149,7 +190,7 @@ async function saveEdit(supplierId: number) {
 
         state.success = 'Supplier updated successfully.';
         state.editingId = 0;
-        await loadData();
+        await loadData(state.currentPage);
     } catch (error) {
         state.error =
             error instanceof Error
@@ -157,6 +198,29 @@ async function saveEdit(supplierId: number) {
                 : 'Failed to update supplier.';
     } finally {
         state.saving = false;
+    }
+}
+
+async function deleteSupplier(supplierId: number) {
+    if (!can('suppliers.delete')) {
+        return;
+    }
+
+    state.deleting = true;
+    state.error = '';
+    state.success = '';
+
+    try {
+        await api.del(`/api/suppliers/${supplierId}`);
+        state.success = 'Supplier deleted successfully.';
+        await loadData(state.currentPage);
+    } catch (error) {
+        state.error =
+            error instanceof Error
+                ? error.message
+                : 'Failed to delete supplier.';
+    } finally {
+        state.deleting = false;
     }
 }
 
@@ -222,6 +286,7 @@ onMounted(loadData);
                         class="rounded border px-3 py-2 text-sm md:col-span-2"
                     />
                     <button
+                        v-if="can('suppliers.create')"
                         type="submit"
                         class="rounded bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
                         :disabled="state.saving"
@@ -232,6 +297,29 @@ onMounted(loadData);
             </SectionCard>
 
             <SectionCard title="Supplier List">
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <p class="text-sm text-muted-foreground">Total: {{ state.total }}</p>
+                    <div class="flex items-center gap-2">
+                        <input
+                            v-model="state.exportFromDate"
+                            type="date"
+                            class="rounded border px-2 py-2 text-sm"
+                        />
+                        <input
+                            v-model="state.exportToDate"
+                            type="date"
+                            class="rounded border px-2 py-2 text-sm"
+                        />
+                        <button
+                            v-if="can('suppliers.view')"
+                            type="button"
+                            class="rounded border px-3 py-2 text-sm"
+                            @click="exportSuppliers"
+                        >
+                            Export Excel
+                        </button>
+                    </div>
+                </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full text-sm">
                         <thead>
@@ -297,6 +385,7 @@ onMounted(loadData);
                                     <td class="px-2 py-2 align-top">
                                         <div class="flex gap-2">
                                             <button
+                                                v-if="can('suppliers.update')"
                                                 type="button"
                                                 class="rounded border px-2 py-1"
                                                 :disabled="state.saving"
@@ -324,29 +413,56 @@ onMounted(loadData);
                                         {{ supplier.branch?.name ?? '-' }}
                                     </td>
                                     <td class="px-2 py-2 align-top">
-                                        <button
-                                            type="button"
-                                            class="rounded border px-2 py-1"
-                                            @click="startEdit(supplier)"
-                                        >
-                                            Edit
-                                        </button>
+                                        <div class="flex gap-2">
+                                            <button
+                                                v-if="can('suppliers.update')"
+                                                type="button"
+                                                class="rounded border px-2 py-1"
+                                                @click="startEdit(supplier)"
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
+                                                v-if="can('suppliers.delete')"
+                                                type="button"
+                                                class="rounded border px-2 py-1"
+                                                :disabled="state.deleting"
+                                                @click="deleteSupplier(supplier.id)"
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
                                     </td>
                                 </template>
                             </tr>
                         </tbody>
                     </table>
                 </div>
+                <div class="mt-3 flex items-center gap-2">
+                    <button
+                        type="button"
+                        class="rounded border px-3 py-1 text-sm"
+                        :disabled="state.currentPage <= 1"
+                        @click="loadData(state.currentPage - 1)"
+                    >
+                        Previous
+                    </button>
+                    <span class="text-sm text-muted-foreground">
+                        Page {{ state.currentPage }} of {{ state.lastPage }}
+                    </span>
+                    <button
+                        type="button"
+                        class="rounded border px-3 py-1 text-sm"
+                        :disabled="state.currentPage >= state.lastPage"
+                        @click="loadData(state.currentPage + 1)"
+                    >
+                        Next
+                    </button>
+                </div>
             </SectionCard>
 
             <p v-if="state.loading" class="text-sm text-muted-foreground">
                 Loading suppliers...
-            </p>
-            <p v-if="state.error" class="text-sm text-destructive">
-                {{ state.error }}
-            </p>
-            <p v-if="state.success" class="text-sm text-emerald-600">
-                {{ state.success }}
             </p>
         </div>
     </AppLayout>

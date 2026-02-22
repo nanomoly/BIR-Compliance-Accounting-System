@@ -63,6 +63,11 @@ class Invoice extends Model
         return $this->belongsTo(Supplier::class);
     }
 
+    public function journalEntry(): BelongsTo
+    {
+        return $this->belongsTo(JournalEntry::class);
+    }
+
     public function lines(): HasMany
     {
         return $this->hasMany(InvoiceLine::class);
@@ -71,5 +76,10 @@ class Invoice extends Model
     public function transmissions(): HasMany
     {
         return $this->hasMany(EInvoiceTransmission::class);
+    }
+
+    public function receipts(): HasMany
+    {
+        return $this->hasMany(SalesReceipt::class);
     }
 }

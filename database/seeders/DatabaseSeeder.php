@@ -13,7 +13,6 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             CasPermissionSeeder::class,
-            CasSampleSeeder::class,
         ]);
     }
 }

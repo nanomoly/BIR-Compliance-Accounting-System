@@ -2,11 +2,14 @@
 import { Head } from '@inertiajs/vue3';
 import { onMounted, reactive } from 'vue';
 import SectionCard from '@/components/cas/SectionCard.vue';
+import { useAuthPermissions } from '@/composables/useAuthPermissions';
 import { useCasApi } from '@/composables/useCasApi';
+import { useStateNotifications } from '@/composables/useStateNotifications';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem } from '@/types';
 
 const api = useCasApi();
+const { can } = useAuthPermissions();
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'CAS Dashboard', href: '/cas' },
@@ -17,11 +20,21 @@ const state = reactive({
     users: [] as Array<any>,
     roles: [] as string[],
     branches: [] as Array<{ id: number; name: string; code: string }>,
+    exportFromDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+        .toISOString()
+        .slice(0, 10),
+    exportToDate: new Date().toISOString().slice(0, 10),
+    currentPage: 1,
+    lastPage: 1,
+    perPage: 15,
+    total: 0,
     loading: false,
     saving: false,
     error: '',
     success: '',
 });
+
+useStateNotifications(state);
 
 const form = reactive({
     name: '',
@@ -31,13 +44,19 @@ const form = reactive({
     branch_id: null as number | null,
 });
 
-async function loadData() {
+async function loadData(page = 1) {
     state.loading = true;
     state.error = '';
 
     try {
         const [usersResponse, catalogResponse] = await Promise.all([
-            api.get<{ data: Array<any> }>('/api/system-users?per_page=100'),
+            api.get<{
+                data: Array<any>;
+                current_page: number;
+                last_page: number;
+                per_page: number;
+                total: number;
+            }>(`/api/system-users?per_page=${state.perPage}&page=${page}`),
             api.get<{
                 roles: string[];
                 branches: Array<{ id: number; name: string; code: string }>;
@@ -45,6 +64,10 @@ async function loadData() {
         ]);
 
         state.users = usersResponse.data;
+        state.currentPage = usersResponse.current_page;
+        state.lastPage = usersResponse.last_page;
+        state.perPage = usersResponse.per_page;
+        state.total = usersResponse.total;
         state.roles = catalogResponse.roles;
         state.branches = catalogResponse.branches;
 
@@ -59,7 +82,20 @@ async function loadData() {
     }
 }
 
+function exportUsers() {
+    const query = new URLSearchParams({
+        from_date: state.exportFromDate,
+        to_date: state.exportToDate,
+    });
+
+    window.open(`/api/exports/system-users?${query.toString()}`, '_blank');
+}
+
 async function createUser() {
+    if (!can('users.create')) {
+        return;
+    }
+
     state.saving = true;
     state.error = '';
     state.success = '';
@@ -153,6 +189,7 @@ function hasGrantedAccess(user: any): boolean {
                     </select>
 
                     <button
+                        v-if="can('users.create')"
                         type="submit"
                         class="rounded bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
                         :disabled="state.saving"
@@ -163,6 +200,29 @@ function hasGrantedAccess(user: any): boolean {
             </SectionCard>
 
             <SectionCard title="System Users List">
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <p class="text-sm text-muted-foreground">Total: {{ state.total }}</p>
+                    <div class="flex items-center gap-2">
+                        <input
+                            v-model="state.exportFromDate"
+                            type="date"
+                            class="rounded border px-2 py-2 text-sm"
+                        />
+                        <input
+                            v-model="state.exportToDate"
+                            type="date"
+                            class="rounded border px-2 py-2 text-sm"
+                        />
+                        <button
+                            v-if="can('users.view')"
+                            type="button"
+                            class="rounded border px-3 py-2 text-sm"
+                            @click="exportUsers"
+                        >
+                            Export Excel
+                        </button>
+                    </div>
+                </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full text-sm">
                         <thead>
@@ -195,16 +255,31 @@ function hasGrantedAccess(user: any): boolean {
                         </tbody>
                     </table>
                 </div>
+                <div class="mt-3 flex items-center gap-2">
+                    <button
+                        type="button"
+                        class="rounded border px-3 py-1 text-sm"
+                        :disabled="state.currentPage <= 1"
+                        @click="loadData(state.currentPage - 1)"
+                    >
+                        Previous
+                    </button>
+                    <span class="text-sm text-muted-foreground">
+                        Page {{ state.currentPage }} of {{ state.lastPage }}
+                    </span>
+                    <button
+                        type="button"
+                        class="rounded border px-3 py-1 text-sm"
+                        :disabled="state.currentPage >= state.lastPage"
+                        @click="loadData(state.currentPage + 1)"
+                    >
+                        Next
+                    </button>
+                </div>
             </SectionCard>
 
             <p v-if="state.loading" class="text-sm text-muted-foreground">
                 Loading users...
-            </p>
-            <p v-if="state.error" class="text-sm text-destructive">
-                {{ state.error }}
-            </p>
-            <p v-if="state.success" class="text-sm text-emerald-600">
-                {{ state.success }}
             </p>
         </div>
     </AppLayout>

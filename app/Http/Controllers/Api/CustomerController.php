@@ -54,4 +54,13 @@ class CustomerController extends Controller
 
         return response()->json($customer->refresh()->load('branch'));
     }
+
+    public function destroy(Request $request, Customer $customer): JsonResponse
+    {
+        abort_unless($request->user()?->can('customers.delete'), 403);
+
+        $customer->delete();
+
+        return response()->json(status: 204);
+    }
 }

@@ -3,6 +3,8 @@ import { Head } from '@inertiajs/vue3';
 import { onMounted, reactive } from 'vue';
 import SectionCard from '@/components/cas/SectionCard.vue';
 import { useCasApi } from '@/composables/useCasApi';
+import { formatPhDateTime } from '@/lib/utils';
+import { useStateNotifications } from '@/composables/useStateNotifications';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem } from '@/types';
 
@@ -39,6 +41,8 @@ const state = reactive({
     loading: false,
     error: '',
 });
+
+useStateNotifications(state);
 
 async function loadLogs() {
     state.loading = true;
@@ -116,6 +120,24 @@ function goUserPage(page: number) {
     void loadLogs();
 }
 
+function exportAuditLogs() {
+    const query = new URLSearchParams({
+        from_date: state.fromDate,
+        to_date: state.toDate,
+    });
+
+    window.open(`/api/exports/audit-logs?${query.toString()}`, '_blank');
+}
+
+function exportUserActivityLogs() {
+    const query = new URLSearchParams({
+        from_date: state.fromDate,
+        to_date: state.toDate,
+    });
+
+    window.open(`/api/exports/user-activity-logs?${query.toString()}`, '_blank');
+}
+
 onMounted(loadLogs);
 </script>
 
@@ -167,6 +189,15 @@ onMounted(loadLogs);
             </SectionCard>
 
             <SectionCard title="Audit Logs (Data Changes)">
+                <div class="mb-3 flex justify-end">
+                    <button
+                        type="button"
+                        class="rounded border px-3 py-2 text-sm"
+                        @click="exportAuditLogs"
+                    >
+                        Export Excel
+                    </button>
+                </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full text-sm">
                         <thead>
@@ -184,7 +215,7 @@ onMounted(loadLogs);
                                 :key="`audit-${log.id}`"
                                 class="border-b"
                             >
-                                <td class="px-2 py-2">{{ log.occurred_at }}</td>
+                                <td class="px-2 py-2">{{ formatPhDateTime(log.occurred_at) }}</td>
                                 <td class="px-2 py-2">
                                     {{ log.user?.name ?? log.user_id ?? '-' }}
                                 </td>
@@ -222,6 +253,15 @@ onMounted(loadLogs);
             </SectionCard>
 
             <SectionCard title="User Activity Logs">
+                <div class="mb-3 flex justify-end">
+                    <button
+                        type="button"
+                        class="rounded border px-3 py-2 text-sm"
+                        @click="exportUserActivityLogs"
+                    >
+                        Export Excel
+                    </button>
+                </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full text-sm">
                         <thead>
@@ -240,7 +280,7 @@ onMounted(loadLogs);
                                 :key="`user-${log.id}`"
                                 class="border-b"
                             >
-                                <td class="px-2 py-2">{{ log.occurred_at }}</td>
+                                <td class="px-2 py-2">{{ formatPhDateTime(log.occurred_at) }}</td>
                                 <td class="px-2 py-2">
                                     {{ log.user?.name ?? log.user_id ?? '-' }}
                                 </td>
@@ -280,9 +320,6 @@ onMounted(loadLogs);
 
             <p v-if="state.loading" class="text-sm text-muted-foreground">
                 Loading logs...
-            </p>
-            <p v-if="state.error" class="text-sm text-destructive">
-                {{ state.error }}
             </p>
         </div>
     </AppLayout>

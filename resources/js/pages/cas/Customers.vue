@@ -2,7 +2,9 @@
 import { Head } from '@inertiajs/vue3';
 import { onMounted, reactive } from 'vue';
 import SectionCard from '@/components/cas/SectionCard.vue';
+import { useAuthPermissions } from '@/composables/useAuthPermissions';
 import { useCasApi } from '@/composables/useCasApi';
+import { useStateNotifications } from '@/composables/useStateNotifications';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem } from '@/types';
 
@@ -25,6 +27,7 @@ type CustomerItem = {
 };
 
 const api = useCasApi();
+const { can } = useAuthPermissions();
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'CAS Dashboard', href: '/cas' },
@@ -34,12 +37,23 @@ const breadcrumbs: BreadcrumbItem[] = [
 const state = reactive({
     customers: [] as CustomerItem[],
     branches: [] as BranchOption[],
+    exportFromDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+        .toISOString()
+        .slice(0, 10),
+    exportToDate: new Date().toISOString().slice(0, 10),
+    currentPage: 1,
+    lastPage: 1,
+    perPage: 15,
+    total: 0,
     loading: false,
     saving: false,
+    deleting: false,
     editingId: 0,
     error: '',
     success: '',
 });
+
+useStateNotifications(state);
 
 const form = reactive({
     code: '',
@@ -60,17 +74,27 @@ const editForm = reactive({
     phone: '',
 });
 
-async function loadData() {
+async function loadData(page = 1) {
     state.loading = true;
     state.error = '';
 
     try {
         const [customersResponse, catalogResponse] = await Promise.all([
-            api.get<{ data: CustomerItem[] }>('/api/customers?per_page=100'),
+            api.get<{
+                data: CustomerItem[];
+                current_page: number;
+                last_page: number;
+                per_page: number;
+                total: number;
+            }>(`/api/customers?per_page=${state.perPage}&page=${page}`),
             api.get<{ branches: BranchOption[] }>('/api/customers/catalog'),
         ]);
 
         state.customers = customersResponse.data;
+        state.currentPage = customersResponse.current_page;
+        state.lastPage = customersResponse.last_page;
+        state.perPage = customersResponse.per_page;
+        state.total = customersResponse.total;
         state.branches = catalogResponse.branches;
     } catch (error) {
         state.error =
@@ -82,7 +106,20 @@ async function loadData() {
     }
 }
 
+function exportCustomers() {
+    const query = new URLSearchParams({
+        from_date: state.exportFromDate,
+        to_date: state.exportToDate,
+    });
+
+    window.open(`/api/exports/customers?${query.toString()}`, '_blank');
+}
+
 async function createCustomer() {
+    if (!can('customers.create')) {
+        return;
+    }
+
     state.saving = true;
     state.error = '';
     state.success = '';
@@ -107,7 +144,7 @@ async function createCustomer() {
         form.email = '';
         form.phone = '';
 
-        await loadData();
+        await loadData(state.currentPage);
     } catch (error) {
         state.error =
             error instanceof Error
@@ -133,6 +170,10 @@ function cancelEdit() {
 }
 
 async function saveEdit(customerId: number) {
+    if (!can('customers.update')) {
+        return;
+    }
+
     state.saving = true;
     state.error = '';
     state.success = '';
@@ -149,7 +190,7 @@ async function saveEdit(customerId: number) {
 
         state.success = 'Customer updated successfully.';
         state.editingId = 0;
-        await loadData();
+        await loadData(state.currentPage);
     } catch (error) {
         state.error =
             error instanceof Error
@@ -157,6 +198,29 @@ async function saveEdit(customerId: number) {
                 : 'Failed to update customer.';
     } finally {
         state.saving = false;
+    }
+}
+
+async function deleteCustomer(customerId: number) {
+    if (!can('customers.delete')) {
+        return;
+    }
+
+    state.deleting = true;
+    state.error = '';
+    state.success = '';
+
+    try {
+        await api.del(`/api/customers/${customerId}`);
+        state.success = 'Customer deleted successfully.';
+        await loadData(state.currentPage);
+    } catch (error) {
+        state.error =
+            error instanceof Error
+                ? error.message
+                : 'Failed to delete customer.';
+    } finally {
+        state.deleting = false;
     }
 }
 
@@ -222,6 +286,7 @@ onMounted(loadData);
                         class="rounded border px-3 py-2 text-sm md:col-span-2"
                     />
                     <button
+                        v-if="can('customers.create')"
                         type="submit"
                         class="rounded bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
                         :disabled="state.saving"
@@ -232,6 +297,29 @@ onMounted(loadData);
             </SectionCard>
 
             <SectionCard title="Customer List">
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <p class="text-sm text-muted-foreground">Total: {{ state.total }}</p>
+                    <div class="flex items-center gap-2">
+                        <input
+                            v-model="state.exportFromDate"
+                            type="date"
+                            class="rounded border px-2 py-2 text-sm"
+                        />
+                        <input
+                            v-model="state.exportToDate"
+                            type="date"
+                            class="rounded border px-2 py-2 text-sm"
+                        />
+                        <button
+                            v-if="can('customers.view')"
+                            type="button"
+                            class="rounded border px-3 py-2 text-sm"
+                            @click="exportCustomers"
+                        >
+                            Export Excel
+                        </button>
+                    </div>
+                </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full text-sm">
                         <thead>
@@ -297,6 +385,7 @@ onMounted(loadData);
                                     <td class="px-2 py-2 align-top">
                                         <div class="flex gap-2">
                                             <button
+                                                v-if="can('customers.update')"
                                                 type="button"
                                                 class="rounded border px-2 py-1"
                                                 :disabled="state.saving"
@@ -324,29 +413,56 @@ onMounted(loadData);
                                         {{ customer.branch?.name ?? '-' }}
                                     </td>
                                     <td class="px-2 py-2 align-top">
-                                        <button
-                                            type="button"
-                                            class="rounded border px-2 py-1"
-                                            @click="startEdit(customer)"
-                                        >
-                                            Edit
-                                        </button>
+                                        <div class="flex gap-2">
+                                            <button
+                                                v-if="can('customers.update')"
+                                                type="button"
+                                                class="rounded border px-2 py-1"
+                                                @click="startEdit(customer)"
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
+                                                v-if="can('customers.delete')"
+                                                type="button"
+                                                class="rounded border px-2 py-1"
+                                                :disabled="state.deleting"
+                                                @click="deleteCustomer(customer.id)"
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
                                     </td>
                                 </template>
                             </tr>
                         </tbody>
                     </table>
                 </div>
+                <div class="mt-3 flex items-center gap-2">
+                    <button
+                        type="button"
+                        class="rounded border px-3 py-1 text-sm"
+                        :disabled="state.currentPage <= 1"
+                        @click="loadData(state.currentPage - 1)"
+                    >
+                        Previous
+                    </button>
+                    <span class="text-sm text-muted-foreground">
+                        Page {{ state.currentPage }} of {{ state.lastPage }}
+                    </span>
+                    <button
+                        type="button"
+                        class="rounded border px-3 py-1 text-sm"
+                        :disabled="state.currentPage >= state.lastPage"
+                        @click="loadData(state.currentPage + 1)"
+                    >
+                        Next
+                    </button>
+                </div>
             </SectionCard>
 
             <p v-if="state.loading" class="text-sm text-muted-foreground">
                 Loading customers...
-            </p>
-            <p v-if="state.error" class="text-sm text-destructive">
-                {{ state.error }}
-            </p>
-            <p v-if="state.success" class="text-sm text-emerald-600">
-                {{ state.success }}
             </p>
         </div>
     </AppLayout>

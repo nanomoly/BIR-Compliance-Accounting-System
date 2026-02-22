@@ -1,18 +1,26 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
+import { computed, onMounted, reactive } from 'vue';
 import {
-    BookOpenText,
-    Building2,
-    FileUp,
-    PenLine,
-    Receipt,
-    Users,
-} from 'lucide-vue-next';
-import { onMounted, reactive } from 'vue';
+    BarElement,
+    CategoryScale,
+    Chart as ChartJS,
+    Legend,
+    LineElement,
+    LinearScale,
+    PointElement,
+    Tooltip,
+    type ChartData,
+    type ChartOptions,
+} from 'chart.js';
+import { Bar } from 'vue-chartjs';
 import SectionCard from '@/components/cas/SectionCard.vue';
 import { useCasApi } from '@/composables/useCasApi';
+import { useStateNotifications } from '@/composables/useStateNotifications';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem } from '@/types';
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, Tooltip, Legend);
 
 const api = useCasApi();
 
@@ -20,134 +28,429 @@ const breadcrumbs: BreadcrumbItem[] = [
     { title: 'CAS Dashboard', href: '/cas' },
 ];
 
+type InvoiceRow = {
+    id: number;
+    invoice_type: 'sales' | 'service' | 'purchase';
+    status: 'draft' | 'issued' | 'cancelled';
+    invoice_date: string;
+    due_date: string | null;
+    total_amount: number;
+};
+
+type ReceiptRow = {
+    invoice_id: number;
+    amount: number;
+};
+
+type BankAccountRow = {
+    id: number;
+    branch_id: number | null;
+    current_balance: number;
+};
+
+type BankTransactionRow = {
+    bank_account_id: number;
+    transaction_date: string;
+    transaction_type: 'debit' | 'credit';
+    amount: number;
+};
+
+type BranchRow = {
+    id: number;
+    code: string;
+    name: string;
+};
+
+const today = new Date();
+const defaultFromMonth = new Date(today.getFullYear(), today.getMonth() - 5, 1).toISOString().slice(0, 7);
+const defaultToMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 7);
+
 const state = reactive({
-    draftEntries: 0,
-    postedEntries: 0,
-    customerCount: 0,
-    supplierCount: 0,
-    invoiceCount: 0,
-    accountCount: 0,
-    branchCount: 0,
-    totalEntries: 0,
-    journalMonths: [] as string[],
-    journalMonthCounts: [] as number[],
-    invoiceMonths: [] as string[],
-    invoiceMonthCounts: [] as number[],
-    accountTypeLabels: [] as string[],
-    accountTypeCounts: [] as number[],
+    branches: [] as BranchRow[],
+    selectedBranchId: 0,
+    fromMonth: defaultFromMonth,
+    toMonth: defaultToMonth,
+    receivablesOpen: 0,
+    receivablesOverdue: 0,
+    payablesOpen: 0,
+    payablesOverdue: 0,
+    incomingThisMonth: 0,
+    outgoingThisMonth: 0,
+    profitThisMonth: 0,
+    profitLossThisMonth: 0,
+    accountBalance: 0,
+    cashflowLabels: [] as string[],
+    cashflowIncoming: [] as number[],
+    cashflowOutgoing: [] as number[],
+    cashflowProfit: [] as number[],
     loading: false,
     error: '',
 });
 
-function monthKey(dateText: string): string {
-    const date = new Date(dateText);
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+useStateNotifications(state);
+
+function monthKey(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+
+    return `${year}-${month}`;
 }
 
-function monthLabel(month: string): string {
-    const [year, m] = month.split('-');
-    const date = new Date(Number(year), Number(m) - 1, 1);
-
-    return date.toLocaleDateString(undefined, { month: 'short', year: '2-digit' });
-}
-
-function percentage(value: number, total: number): number {
-    if (total <= 0) {
-        return 0;
+function parseDate(value: string | null | undefined): Date | null {
+    if (!value) {
+        return null;
     }
 
-    return Math.round((value / total) * 100);
+    const parsed = new Date(value);
+
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function maxValue(values: number[]): number {
+function toAmount(value: number | string | null | undefined): number {
+    return Number(value ?? 0);
+}
+
+function formatCurrency(value: number): string {
+    return new Intl.NumberFormat('en-PH', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    }).format(value);
+}
+
+function monthRange(fromMonth: string, toMonth: string): string[] {
+    const from = parseDate(`${fromMonth}-01`);
+    const to = parseDate(`${toMonth}-01`);
+
+    if (!from || !to) {
+        return [];
+    }
+
+    const start = from <= to ? from : to;
+    const end = from <= to ? to : from;
+    const labels: string[] = [];
+    const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+
+    while (cursor <= end && labels.length < 36) {
+        labels.push(monthKey(cursor));
+        cursor.setMonth(cursor.getMonth() + 1);
+    }
+
+    return labels;
+}
+
+const chartAbsMax = computed(() => {
+    const values = [
+        ...state.cashflowIncoming,
+        ...state.cashflowOutgoing,
+        ...state.cashflowProfit.map((value) => Math.abs(value)),
+    ];
+
     if (values.length === 0) {
         return 1;
     }
 
-    return Math.max(...values, 1);
-}
+    return Math.max(1, ...values);
+});
 
-function linePoints(values: number[]): string {
-    if (values.length === 0) {
-        return '';
+const cashflowRows = computed(() => state.cashflowLabels.map((label, index) => ({
+    label,
+    incoming: state.cashflowIncoming[index] ?? 0,
+    outgoing: state.cashflowOutgoing[index] ?? 0,
+    profit: state.cashflowProfit[index] ?? 0,
+})));
+
+const cashflowBarData = computed<ChartData<'bar'>>(() => ({
+    labels: state.cashflowLabels,
+    datasets: [
+        {
+            type: 'bar',
+            label: 'Incoming',
+            data: state.cashflowIncoming,
+            backgroundColor: 'rgba(34, 197, 94, 0.70)',
+            borderColor: 'rgba(34, 197, 94, 1)',
+            borderWidth: 1,
+            borderRadius: 3,
+            barThickness: 16,
+        },
+        {
+            type: 'bar',
+            label: 'Outgoing',
+            data: state.cashflowOutgoing.map((value) => value * -1),
+            backgroundColor: 'rgba(244, 63, 94, 0.70)',
+            borderColor: 'rgba(244, 63, 94, 1)',
+            borderWidth: 1,
+            borderRadius: 3,
+            barThickness: 16,
+        },
+        {
+            type: 'line',
+            label: 'Profit',
+            data: state.cashflowProfit,
+            borderColor: 'rgba(59, 130, 246, 1)',
+            backgroundColor: 'rgba(59, 130, 246, 1)',
+            pointBackgroundColor: 'rgba(59, 130, 246, 1)',
+            pointBorderColor: '#ffffff',
+            pointBorderWidth: 1,
+            pointRadius: 4,
+            pointHoverRadius: 5,
+            tension: 0.25,
+            fill: false,
+            borderWidth: 2,
+        },
+    ],
+}));
+
+const cashflowChartOptions = computed<ChartOptions<'bar'>>(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: {
+        mode: 'index',
+        intersect: false,
+    },
+    plugins: {
+        legend: {
+            position: 'top',
+            align: 'start',
+            labels: {
+                usePointStyle: true,
+                boxWidth: 8,
+                boxHeight: 8,
+            },
+        },
+        tooltip: {
+            callbacks: {
+                label: (context) => {
+                    const label = context.dataset.label ?? '';
+                    let value = Number(context.parsed.y ?? 0);
+
+                    if (label === 'Outgoing') {
+                        value = Math.abs(value);
+                    }
+
+                    return `${label}: ${formatCurrency(value)}`;
+                },
+            },
+        },
+    },
+    scales: {
+        x: {
+            grid: {
+                display: false,
+            },
+        },
+        y: {
+            min: -chartAbsMax.value,
+            max: chartAbsMax.value,
+            ticks: {
+                callback: (value) => formatCurrency(Math.abs(Number(value))),
+            },
+        },
+    },
+}));
+
+const receivablesCurrentOpen = computed(() => Math.max(0, state.receivablesOpen - state.receivablesOverdue));
+const payablesCurrentOpen = computed(() => Math.max(0, state.payablesOpen - state.payablesOverdue));
+
+const receivablesOpenPercent = computed(() => {
+    if (state.receivablesOpen <= 0) {
+        return 0;
     }
 
-    const width = 320;
-    const height = 140;
-    const max = maxValue(values);
+    return Math.max(0, Math.min(100, (receivablesCurrentOpen.value / state.receivablesOpen) * 100));
+});
 
-    return values
-        .map((value, index) => {
-            const x = values.length === 1 ? width / 2 : (index / (values.length - 1)) * width;
-            const y = height - (value / max) * (height - 12) - 6;
+const receivablesOverduePercent = computed(() => {
+    if (state.receivablesOpen <= 0) {
+        return 0;
+    }
 
-            return `${Math.round(x)},${Math.round(y)}`;
-        })
-        .join(' ');
-}
+    return Math.max(0, Math.min(100, (state.receivablesOverdue / state.receivablesOpen) * 100));
+});
+
+const payablesOpenPercent = computed(() => {
+    if (state.payablesOpen <= 0) {
+        return 0;
+    }
+
+    return Math.max(0, Math.min(100, (payablesCurrentOpen.value / state.payablesOpen) * 100));
+});
+
+const payablesOverduePercent = computed(() => {
+    if (state.payablesOpen <= 0) {
+        return 0;
+    }
+
+    return Math.max(0, Math.min(100, (state.payablesOverdue / state.payablesOpen) * 100));
+});
 
 async function loadSummary() {
     state.loading = true;
     state.error = '';
 
     try {
-        const [accountsResult, journalsResult, systemInfoResult, customersResult, suppliersResult, invoicesResult] = await Promise.allSettled([
-            api.get<{ data: Array<{ type: string }> }>('/api/accounts?per_page=500'),
-            api.get<{ data: Array<{ status: string; entry_date: string }> }>('/api/journal-entries?per_page=500'),
-            api.get<{ company: unknown }>('/api/system-info'),
-            api.get<{ data: Array<unknown> }>('/api/customers?per_page=500'),
-            api.get<{ data: Array<unknown> }>('/api/suppliers?per_page=500'),
-            api.get<{ data: Array<{ invoice_date: string }> }>('/api/e-invoices?per_page=500'),
+        const [invoicesResult, receiptsResult, bankAccountsResult, bankTransactionsResult, branchesResult] = await Promise.allSettled([
+            api.get<{ data: InvoiceRow[] }>('/api/e-invoices?per_page=1000'),
+            api.get<{ data: ReceiptRow[] }>('/api/collections/receipts?per_page=1000'),
+            api.get<{ data: BankAccountRow[] }>('/api/bank-accounts?per_page=500'),
+            api.get<{ data: BankTransactionRow[] }>('/api/bank-transactions?per_page=1000'),
+            api.get<{ data: BranchRow[] }>('/api/branches?per_page=500'),
         ]);
 
-        const accounts = accountsResult.status === 'fulfilled' ? accountsResult.value.data : [];
-        const journals = journalsResult.status === 'fulfilled' ? journalsResult.value.data : [];
-        const company =
-            systemInfoResult.status === 'fulfilled' ? systemInfoResult.value.company : null;
-        const customers = customersResult.status === 'fulfilled' ? customersResult.value.data : [];
-        const suppliers = suppliersResult.status === 'fulfilled' ? suppliersResult.value.data : [];
         const invoices = invoicesResult.status === 'fulfilled' ? invoicesResult.value.data : [];
+        const receipts = receiptsResult.status === 'fulfilled' ? receiptsResult.value.data : [];
+        const bankAccounts = bankAccountsResult.status === 'fulfilled' ? bankAccountsResult.value.data : [];
+        const bankTransactions = bankTransactionsResult.status === 'fulfilled' ? bankTransactionsResult.value.data : [];
+        state.branches = branchesResult.status === 'fulfilled' ? branchesResult.value.data : [];
 
-        state.accountCount = accounts.length;
-        state.postedEntries = journals.filter(
-            (entry) => entry.status === 'posted',
-        ).length;
-        state.draftEntries = journals.filter(
-            (entry) => entry.status === 'draft',
-        ).length;
-        state.customerCount = customers.length;
-        state.supplierCount = suppliers.length;
-        state.invoiceCount = invoices.length;
-        state.branchCount = company ? 1 : 0;
-        state.totalEntries = journals.length;
+        const filterToday = new Date();
+        filterToday.setHours(0, 0, 0, 0);
 
-        const groupedMonths = journals.reduce<Record<string, number>>((acc, entry) => {
-            const month = monthKey(entry.entry_date);
-            acc[month] = (acc[month] ?? 0) + 1;
+        const fromBoundary = parseDate(`${state.fromMonth}-01`) ?? new Date(filterToday.getFullYear(), filterToday.getMonth() - 5, 1);
+        const toMonthDate = parseDate(`${state.toMonth}-01`) ?? new Date(filterToday.getFullYear(), filterToday.getMonth(), 1);
+        const toBoundary = new Date(toMonthDate.getFullYear(), toMonthDate.getMonth() + 1, 0);
+        toBoundary.setHours(23, 59, 59, 999);
 
-            return acc;
-        }, {});
-        const sortedMonths = Object.keys(groupedMonths).sort();
-        state.journalMonths = sortedMonths.map(monthLabel);
-        state.journalMonthCounts = sortedMonths.map((month) => groupedMonths[month]);
+        const selectedBranchId = Number(state.selectedBranchId || 0);
+        const filteredInvoices = invoices.filter((invoice) => {
+            const invoiceDate = parseDate(invoice.invoice_date);
+            const inRange = invoiceDate ? invoiceDate >= fromBoundary && invoiceDate <= toBoundary : false;
+            const inBranch = selectedBranchId > 0 ? Number((invoice as { branch_id?: number }).branch_id ?? 0) === selectedBranchId : true;
 
-        const groupedInvoiceMonths = invoices.reduce<Record<string, number>>((acc, invoice) => {
-            const month = monthKey(invoice.invoice_date);
-            acc[month] = (acc[month] ?? 0) + 1;
+            return inRange && inBranch;
+        });
 
-            return acc;
-        }, {});
-        const sortedInvoiceMonths = Object.keys(groupedInvoiceMonths).sort();
-        state.invoiceMonths = sortedInvoiceMonths.map(monthLabel);
-        state.invoiceMonthCounts = sortedInvoiceMonths.map((month) => groupedInvoiceMonths[month]);
+        const bankAccountById = new Map<number, BankAccountRow>();
+        for (const account of bankAccounts) {
+            bankAccountById.set(Number(account.id), account);
+        }
 
-        const groupedTypes = accounts.reduce<Record<string, number>>((acc, account) => {
-            acc[account.type] = (acc[account.type] ?? 0) + 1;
+        const filteredBankAccounts = bankAccounts.filter((account) => {
+            if (selectedBranchId === 0) {
+                return true;
+            }
 
-            return acc;
-        }, {});
-        state.accountTypeLabels = Object.keys(groupedTypes);
-        state.accountTypeCounts = Object.values(groupedTypes);
+            return Number(account.branch_id ?? 0) === selectedBranchId;
+        });
+
+        const filteredBankTransactions = bankTransactions.filter((transaction) => {
+            const transactionDate = parseDate(transaction.transaction_date);
+            if (!transactionDate || transactionDate < fromBoundary || transactionDate > toBoundary) {
+                return false;
+            }
+
+            if (selectedBranchId === 0) {
+                return true;
+            }
+
+            const account = bankAccountById.get(Number(transaction.bank_account_id));
+            return Number(account?.branch_id ?? 0) === selectedBranchId;
+        });
+
+        const filteredInvoiceIds = new Set(filteredInvoices.map((invoice) => Number(invoice.id)));
+        const filteredReceipts = receipts.filter((receipt) => filteredInvoiceIds.has(Number(receipt.invoice_id)));
+
+        const today = new Date(filterToday);
+        today.setHours(0, 0, 0, 0);
+
+        const paidByInvoice = new Map<number, number>();
+        for (const receipt of filteredReceipts) {
+            const invoiceId = Number(receipt.invoice_id ?? 0);
+            const current = paidByInvoice.get(invoiceId) ?? 0;
+            paidByInvoice.set(invoiceId, current + toAmount(receipt.amount));
+        }
+
+        let receivablesOpen = 0;
+        let receivablesOverdue = 0;
+        let payablesOpen = 0;
+        let payablesOverdue = 0;
+
+        let revenueInRange = 0;
+        let expenseInRange = 0;
+
+        for (const invoice of filteredInvoices) {
+            if (invoice.status !== 'issued') {
+                continue;
+            }
+
+            const dueDate = parseDate(invoice.due_date);
+            const total = toAmount(invoice.total_amount);
+            const isOverdue = dueDate !== null && dueDate < today;
+
+            const invoiceDate = parseDate(invoice.invoice_date);
+
+            if (invoice.invoice_type === 'sales' || invoice.invoice_type === 'service') {
+                const paid = paidByInvoice.get(Number(invoice.id)) ?? 0;
+                const open = Math.max(0, total - paid);
+
+                receivablesOpen += open;
+                if (open > 0 && isOverdue) {
+                    receivablesOverdue += open;
+                }
+
+                if (invoiceDate !== null && invoiceDate >= fromBoundary && invoiceDate <= toBoundary) {
+                    revenueInRange += total;
+                }
+            }
+
+            if (invoice.invoice_type === 'purchase') {
+                payablesOpen += total;
+                if (isOverdue) {
+                    payablesOverdue += total;
+                }
+
+                if (invoiceDate !== null && invoiceDate >= fromBoundary && invoiceDate <= toBoundary) {
+                    expenseInRange += total;
+                }
+            }
+        }
+
+        state.receivablesOpen = Number(receivablesOpen.toFixed(2));
+        state.receivablesOverdue = Number(receivablesOverdue.toFixed(2));
+        state.payablesOpen = Number(payablesOpen.toFixed(2));
+        state.payablesOverdue = Number(payablesOverdue.toFixed(2));
+        state.profitLossThisMonth = Number((revenueInRange - expenseInRange).toFixed(2));
+
+        state.accountBalance = Number(
+            filteredBankAccounts.reduce((sum, account) => sum + toAmount(account.current_balance), 0).toFixed(2),
+        );
+
+        const monthKeys = monthRange(state.fromMonth, state.toMonth);
+
+        const incomingByMonth = new Map<string, number>();
+        const outgoingByMonth = new Map<string, number>();
+        for (const key of monthKeys) {
+            incomingByMonth.set(key, 0);
+            outgoingByMonth.set(key, 0);
+        }
+
+        for (const transaction of filteredBankTransactions) {
+            const transactionDate = parseDate(transaction.transaction_date);
+            if (!transactionDate) {
+                continue;
+            }
+
+            const key = monthKey(transactionDate);
+            if (!incomingByMonth.has(key)) {
+                continue;
+            }
+
+            const amount = toAmount(transaction.amount);
+            if (transaction.transaction_type === 'credit') {
+                incomingByMonth.set(key, (incomingByMonth.get(key) ?? 0) + amount);
+            } else {
+                outgoingByMonth.set(key, (outgoingByMonth.get(key) ?? 0) + amount);
+            }
+        }
+
+        state.cashflowLabels = monthKeys;
+        state.cashflowIncoming = monthKeys.map((key) => Number((incomingByMonth.get(key) ?? 0).toFixed(2)));
+        state.cashflowOutgoing = monthKeys.map((key) => Number((outgoingByMonth.get(key) ?? 0).toFixed(2)));
+        state.cashflowProfit = monthKeys.map((key, index) => Number((state.cashflowIncoming[index] - state.cashflowOutgoing[index]).toFixed(2)));
+
+        state.incomingThisMonth = Number(state.cashflowIncoming.reduce((sum, value) => sum + value, 0).toFixed(2));
+        state.outgoingThisMonth = Number(state.cashflowOutgoing.reduce((sum, value) => sum + value, 0).toFixed(2));
+        state.profitThisMonth = Number((state.incomingThisMonth - state.outgoingThisMonth).toFixed(2));
+
     } catch (error) {
         state.error =
             error instanceof Error
@@ -166,182 +469,132 @@ onMounted(loadSummary);
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex flex-1 flex-col gap-4 p-4">
-            <div class="grid gap-4 md:grid-cols-4 xl:grid-cols-6">
-                <SectionCard title="Chart of Accounts">
-                    <BookOpenText class="mb-2 h-5 w-5 text-muted-foreground" />
-                    <p class="text-2xl font-semibold">{{ state.accountCount }}</p>
+            <SectionCard title="Filters" description="Branch and date range for dashboard metrics and chart.">
+                <div class="grid gap-3 md:grid-cols-4">
+                    <label class="grid gap-1 text-sm">
+                        <span>Branch</span>
+                        <select v-model.number="state.selectedBranchId" class="rounded border px-3 py-2 text-sm">
+                            <option :value="0">All Branches</option>
+                            <option v-for="branch in state.branches" :key="branch.id" :value="branch.id">
+                                {{ branch.code }} - {{ branch.name }}
+                            </option>
+                        </select>
+                    </label>
+                    <label class="grid gap-1 text-sm">
+                        <span>From Month</span>
+                        <input v-model="state.fromMonth" type="month" class="rounded border px-3 py-2 text-sm" />
+                    </label>
+                    <label class="grid gap-1 text-sm">
+                        <span>To Month</span>
+                        <input v-model="state.toMonth" type="month" class="rounded border px-3 py-2 text-sm" />
+                    </label>
+                    <div class="flex items-end gap-2">
+                        <button type="button" class="rounded border px-3 py-2 text-sm" :disabled="state.loading" @click="loadSummary">Apply</button>
+                        <button
+                            type="button"
+                            class="rounded border px-3 py-2 text-sm"
+                            :disabled="state.loading"
+                            @click="() => { state.selectedBranchId = 0; state.fromMonth = defaultFromMonth; state.toMonth = defaultToMonth; loadSummary(); }"
+                        >
+                            Reset
+                        </button>
+                    </div>
+                </div>
+            </SectionCard>
+
+            <SectionCard title="Receivables & Payables" description="Open and overdue positions based on active invoices.">
+                <div class="grid gap-4 lg:grid-cols-2">
+                    <div class="rounded border p-4">
+                        <div class="mb-2 flex items-center justify-between">
+                            <p class="text-base font-semibold">Receivables</p>
+                        </div>
+                        <p class="text-xs text-muted-foreground">Amount that you're yet to receive from your customers.</p>
+                        <div class="mt-4 border-t pt-4">
+                            <p class="text-sm text-muted-foreground">Total unpaid invoices: <span class="font-semibold text-foreground">{{ formatCurrency(state.receivablesOpen) }}</span></p>
+                            <div class="mt-2 h-3 w-full overflow-hidden rounded-full bg-muted">
+                                <div class="flex h-full w-full">
+                                    <div class="bg-amber-400" :style="{ width: `${receivablesOpenPercent}%` }" />
+                                    <div class="bg-rose-400" :style="{ width: `${receivablesOverduePercent}%` }" />
+                                </div>
+                            </div>
+                            <div class="mt-3 grid grid-cols-2 gap-4">
+                                <div>
+                                    <p class="text-xs uppercase text-amber-500">Open</p>
+                                    <p class="text-lg font-semibold">{{ formatCurrency(receivablesCurrentOpen) }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs uppercase text-rose-500">Overdue</p>
+                                    <p class="text-lg font-semibold">{{ formatCurrency(state.receivablesOverdue) }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="rounded border p-4">
+                        <div class="mb-2 flex items-center justify-between">
+                            <p class="text-base font-semibold">Payables</p>
+                        </div>
+                        <p class="text-xs text-muted-foreground">Amount that you're yet to pay to your vendors.</p>
+                        <div class="mt-4 border-t pt-4">
+                            <p class="text-sm text-muted-foreground">Total unpaid bills: <span class="font-semibold text-foreground">{{ formatCurrency(state.payablesOpen) }}</span></p>
+                            <div class="mt-2 h-3 w-full overflow-hidden rounded-full bg-muted">
+                                <div class="flex h-full w-full">
+                                    <div class="bg-amber-400" :style="{ width: `${payablesOpenPercent}%` }" />
+                                    <div class="bg-rose-400" :style="{ width: `${payablesOverduePercent}%` }" />
+                                </div>
+                            </div>
+                            <div class="mt-3 grid grid-cols-2 gap-4">
+                                <div>
+                                    <p class="text-xs uppercase text-amber-500">Open</p>
+                                    <p class="text-lg font-semibold">{{ formatCurrency(payablesCurrentOpen) }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs uppercase text-rose-500">Overdue</p>
+                                    <p class="text-lg font-semibold">{{ formatCurrency(state.payablesOverdue) }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </SectionCard>
+
+            <SectionCard title="Cash Flow Trend" description="Incoming, outgoing, and net cash flow within selected range.">
+                <div class="grid gap-4 lg:grid-cols-[2fr_1fr]">
+                    <div class="rounded border p-3">
+                        <div class="h-56 w-full">
+                            <Bar :data="cashflowBarData" :options="cashflowChartOptions" />
+                        </div>
+                    </div>
+
+                    <div class="grid gap-3">
+                        <div class="rounded border p-3">
+                            <p class="text-xs uppercase text-muted-foreground">Incoming (Range)</p>
+                            <p class="text-xl font-semibold">{{ formatCurrency(state.incomingThisMonth) }}</p>
+                        </div>
+                        <div class="rounded border p-3">
+                            <p class="text-xs uppercase text-muted-foreground">Outgoing (Range)</p>
+                            <p class="text-xl font-semibold">{{ formatCurrency(state.outgoingThisMonth) }}</p>
+                        </div>
+                        <div class="rounded border p-3">
+                            <p class="text-xs uppercase text-muted-foreground">Profit (Range)</p>
+                            <p class="text-xl font-semibold">{{ formatCurrency(state.profitThisMonth) }}</p>
+                        </div>
+                    </div>
+                </div>
+            </SectionCard>
+
+            <div class="grid gap-4 md:grid-cols-2">
+                <SectionCard title="Profit & Loss" description="Issued revenue minus purchase expense in selected range.">
+                    <p class="text-3xl font-semibold">{{ formatCurrency(state.profitLossThisMonth) }}</p>
                 </SectionCard>
-                <SectionCard title="Draft Journal Entries">
-                    <PenLine class="mb-2 h-5 w-5 text-muted-foreground" />
-                    <p class="text-2xl font-semibold">{{ state.draftEntries }}</p>
-                </SectionCard>
-                <SectionCard title="Posted Journal Entries">
-                    <FileUp class="mb-2 h-5 w-5 text-muted-foreground" />
-                    <p class="text-2xl font-semibold">{{ state.postedEntries }}</p>
-                </SectionCard>
-                <SectionCard title="Customers">
-                    <Users class="mb-2 h-5 w-5 text-muted-foreground" />
-                    <p class="text-2xl font-semibold">{{ state.customerCount }}</p>
-                </SectionCard>
-                <SectionCard title="Suppliers">
-                    <Users class="mb-2 h-5 w-5 text-muted-foreground" />
-                    <p class="text-2xl font-semibold">{{ state.supplierCount }}</p>
-                </SectionCard>
-                <SectionCard title="E-Invoices">
-                    <Receipt class="mb-2 h-5 w-5 text-muted-foreground" />
-                    <p class="text-2xl font-semibold">{{ state.invoiceCount }}</p>
-                </SectionCard>
-                <SectionCard title="Branches">
-                    <Building2 class="mb-2 h-5 w-5 text-muted-foreground" />
-                    <p class="text-2xl font-semibold">{{ state.branchCount }}</p>
+
+                <SectionCard title="Account Balance" description="Total current balance across active bank accounts.">
+                    <p class="text-3xl font-semibold">{{ formatCurrency(state.accountBalance) }}</p>
                 </SectionCard>
             </div>
-
-            <div class="grid gap-4 lg:grid-cols-2">
-                <SectionCard
-                    title="Journal Status Graph"
-                    description="Distribution of draft versus posted journal entries."
-                >
-                    <div class="space-y-3 text-sm">
-                        <div>
-                            <div class="mb-1 flex items-center justify-between">
-                                <span>Posted</span>
-                                <span>{{ percentage(state.postedEntries, state.totalEntries) }}%</span>
-                            </div>
-                            <div class="h-3 rounded bg-muted">
-                                <div
-                                    class="h-3 rounded bg-primary"
-                                    :style="{ width: `${percentage(state.postedEntries, state.totalEntries)}%` }"
-                                />
-                            </div>
-                        </div>
-                        <div>
-                            <div class="mb-1 flex items-center justify-between">
-                                <span>Draft</span>
-                                <span>{{ percentage(state.draftEntries, state.totalEntries) }}%</span>
-                            </div>
-                            <div class="h-3 rounded bg-muted">
-                                <div
-                                    class="h-3 rounded bg-amber-500"
-                                    :style="{ width: `${percentage(state.draftEntries, state.totalEntries)}%` }"
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </SectionCard>
-
-                <SectionCard
-                    title="Monthly Journal Line Trend"
-                    description="Line graph of journal entries by month."
-                >
-                    <div v-if="state.journalMonthCounts.length > 0" class="space-y-2">
-                        <svg viewBox="0 0 320 140" class="h-48 w-full">
-                            <polyline
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="3"
-                                class="text-primary"
-                                :points="linePoints(state.journalMonthCounts)"
-                            />
-                        </svg>
-                        <div class="flex flex-wrap gap-2 text-[10px] text-muted-foreground">
-                            <span v-for="label in state.journalMonths" :key="`journal-${label}`">{{ label }}</span>
-                        </div>
-                    </div>
-                    <div v-else class="text-sm text-muted-foreground">
-                        No journal trend data available.
-                    </div>
-                </SectionCard>
-            </div>
-
-            <SectionCard
-                title="Monthly E-Invoice Line Trend"
-                description="Line graph of sales and purchase e-invoice volume by month."
-            >
-                <div v-if="state.invoiceMonthCounts.length > 0" class="space-y-2">
-                    <svg viewBox="0 0 320 140" class="h-48 w-full">
-                        <polyline
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="3"
-                            class="text-primary"
-                            :points="linePoints(state.invoiceMonthCounts)"
-                        />
-                    </svg>
-                    <div class="flex flex-wrap gap-2 text-[10px] text-muted-foreground">
-                        <span v-for="label in state.invoiceMonths" :key="`invoice-${label}`">{{ label }}</span>
-                    </div>
-                </div>
-                <div v-else class="text-sm text-muted-foreground">
-                    No e-invoice trend data available.
-                </div>
-            </SectionCard>
-
-            <SectionCard
-                title="Account Type Mix"
-                description="Distribution of chart of account types."
-            >
-                <div class="grid gap-2 text-sm md:grid-cols-5">
-                    <div
-                        v-for="(label, index) in state.accountTypeLabels"
-                        :key="`${label}-${index}`"
-                        class="rounded border p-3"
-                    >
-                        <p class="text-xs uppercase text-muted-foreground">{{ label }}</p>
-                        <p class="text-xl font-semibold">{{ state.accountTypeCounts[index] }}</p>
-                    </div>
-                </div>
-            </SectionCard>
-
-            <SectionCard
-                title="BIR-CAS Modules"
-                description="Navigate through all accounting and compliance modules."
-            >
-                <div class="grid gap-2 text-sm md:grid-cols-2 lg:grid-cols-3">
-                    <a href="/cas/accounts" class="rounded border p-3 hover:bg-muted"
-                        >Chart of Accounts</a
-                    >
-                    <a href="/cas/customers" class="rounded border p-3 hover:bg-muted"
-                        >Customers (Receivables)</a
-                    >
-                    <a href="/cas/suppliers" class="rounded border p-3 hover:bg-muted"
-                        >Suppliers (Payables)</a
-                    >
-                    <a href="/cas/journals" class="rounded border p-3 hover:bg-muted"
-                        >Journals & General Ledger</a
-                    >
-                    <a href="/cas/e-invoicing" class="rounded border p-3 hover:bg-muted"
-                        >E-Invoicing (Sales & Purchase)</a
-                    >
-                    <a href="/cas/reports" class="rounded border p-3 hover:bg-muted"
-                        >BIR-Mandated Reports</a
-                    >
-                    <a href="/cas/ledgers" class="rounded border p-3 hover:bg-muted"
-                        >Subsidiary Ledgers</a
-                    >
-                    <a href="/cas/backups" class="rounded border p-3 hover:bg-muted"
-                        >Backup & Restore</a
-                    >
-                    <a href="/cas/system-info" class="rounded border p-3 hover:bg-muted"
-                        >System Information</a
-                    >
-                    <a href="/cas/users" class="rounded border p-3 hover:bg-muted"
-                        >System Users</a
-                    >
-                    <a href="/cas/user-access" class="rounded border p-3 hover:bg-muted"
-                        >User Access Management</a
-                    >
-                    <a href="/cas/audit-trail" class="rounded border p-3 hover:bg-muted"
-                        >Audit Trail Logs</a
-                    >
-                </div>
-            </SectionCard>
 
             <p v-if="state.loading" class="text-sm text-muted-foreground">
                 Loading dashboard data...
-            </p>
-            <p v-if="state.error" class="text-sm text-destructive">
-                {{ state.error }}
             </p>
         </div>
     </AppLayout>

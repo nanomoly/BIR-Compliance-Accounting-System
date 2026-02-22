@@ -2,11 +2,14 @@
 import { Head } from '@inertiajs/vue3';
 import { onMounted, reactive } from 'vue';
 import SectionCard from '@/components/cas/SectionCard.vue';
+import { useAuthPermissions } from '@/composables/useAuthPermissions';
 import { useCasApi } from '@/composables/useCasApi';
+import { useStateNotifications } from '@/composables/useStateNotifications';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { AccountRow, BreadcrumbItem, PaginatedResponse } from '@/types';
 
 const api = useCasApi();
+const { can } = useAuthPermissions();
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'CAS Dashboard', href: '/cas' },
@@ -26,20 +29,34 @@ const form = reactive({
 
 const state = reactive({
     accounts: [] as AccountRow[],
+    exportFromDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+        .toISOString()
+        .slice(0, 10),
+    exportToDate: new Date().toISOString().slice(0, 10),
+    currentPage: 1,
+    lastPage: 1,
+    perPage: 15,
+    total: 0,
     loading: false,
     error: '',
     success: '',
 });
 
-async function loadAccounts() {
+useStateNotifications(state);
+
+async function loadAccounts(page = 1) {
     state.loading = true;
     state.error = '';
 
     try {
         const response = await api.get<PaginatedResponse<AccountRow>>(
-            '/api/accounts?per_page=200',
+            `/api/accounts?per_page=${state.perPage}&page=${page}`,
         );
         state.accounts = response.data;
+        state.currentPage = response.current_page;
+        state.lastPage = response.last_page;
+        state.perPage = response.per_page;
+        state.total = response.total;
     } catch (error) {
         state.error =
             error instanceof Error ? error.message : 'Failed to load accounts.';
@@ -48,7 +65,20 @@ async function loadAccounts() {
     }
 }
 
+function exportAccounts() {
+    const query = new URLSearchParams({
+        from_date: state.exportFromDate,
+        to_date: state.exportToDate,
+    });
+
+    window.open(`/api/exports/accounts?${query.toString()}`, '_blank');
+}
+
 async function createAccount() {
+    if (!can('accounts.create')) {
+        return;
+    }
+
     state.error = '';
     state.success = '';
 
@@ -66,13 +96,17 @@ async function createAccount() {
 }
 
 async function deleteAccount(accountId: number) {
+    if (!can('accounts.delete')) {
+        return;
+    }
+
     state.error = '';
     state.success = '';
 
     try {
         await api.del(`/api/accounts/${accountId}`);
         state.success = 'Account deleted.';
-        await loadAccounts();
+        await loadAccounts(state.currentPage);
     } catch (error) {
         state.error =
             error instanceof Error ? error.message : 'Failed to delete account.';
@@ -111,13 +145,36 @@ onMounted(loadAccounts);
                             {{ account.code }} - {{ account.name }}
                         </option>
                     </select>
-                    <button type="submit" class="rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
+                    <button v-if="can('accounts.create')" type="submit" class="rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
                         Create
                     </button>
                 </form>
             </SectionCard>
 
             <SectionCard title="Accounts List">
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <p class="text-sm text-muted-foreground">Total: {{ state.total }}</p>
+                    <div class="flex items-center gap-2">
+                        <input
+                            v-model="state.exportFromDate"
+                            type="date"
+                            class="rounded border px-2 py-2 text-sm"
+                        />
+                        <input
+                            v-model="state.exportToDate"
+                            type="date"
+                            class="rounded border px-2 py-2 text-sm"
+                        />
+                        <button
+                            v-if="can('accounts.view')"
+                            type="button"
+                            class="rounded border px-3 py-2 text-sm"
+                            @click="exportAccounts"
+                        >
+                            Export Excel
+                        </button>
+                    </div>
+                </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full text-sm">
                         <thead>
@@ -136,7 +193,7 @@ onMounted(loadAccounts);
                                 <td class="px-2 py-2 uppercase">{{ account.type }}</td>
                                 <td class="px-2 py-2 uppercase">{{ account.normal_balance }}</td>
                                 <td class="px-2 py-2">
-                                    <button class="rounded border px-2 py-1 text-xs" @click="deleteAccount(account.id)">
+                                    <button v-if="can('accounts.delete')" class="rounded border px-2 py-1 text-xs" @click="deleteAccount(account.id)">
                                         Delete
                                     </button>
                                 </td>
@@ -144,11 +201,30 @@ onMounted(loadAccounts);
                         </tbody>
                     </table>
                 </div>
+                <div class="mt-3 flex items-center gap-2">
+                    <button
+                        type="button"
+                        class="rounded border px-3 py-1 text-sm"
+                        :disabled="state.currentPage <= 1"
+                        @click="loadAccounts(state.currentPage - 1)"
+                    >
+                        Previous
+                    </button>
+                    <span class="text-sm text-muted-foreground">
+                        Page {{ state.currentPage }} of {{ state.lastPage }}
+                    </span>
+                    <button
+                        type="button"
+                        class="rounded border px-3 py-1 text-sm"
+                        :disabled="state.currentPage >= state.lastPage"
+                        @click="loadAccounts(state.currentPage + 1)"
+                    >
+                        Next
+                    </button>
+                </div>
             </SectionCard>
 
             <p v-if="state.loading" class="text-sm text-muted-foreground">Loading...</p>
-            <p v-if="state.error" class="text-sm text-destructive">{{ state.error }}</p>
-            <p v-if="state.success" class="text-sm text-emerald-600">{{ state.success }}</p>
         </div>
     </AppLayout>
 </template>

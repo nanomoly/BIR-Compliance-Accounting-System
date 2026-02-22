@@ -54,4 +54,13 @@ class SupplierController extends Controller
 
         return response()->json($supplier->refresh()->load('branch'));
     }
+
+    public function destroy(Request $request, Supplier $supplier): JsonResponse
+    {
+        abort_unless($request->user()?->can('suppliers.delete'), 403);
+
+        $supplier->delete();
+
+        return response()->json(status: 204);
+    }
 }

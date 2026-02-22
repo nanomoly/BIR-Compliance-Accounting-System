@@ -2,7 +2,10 @@
 import { Head } from '@inertiajs/vue3';
 import { onMounted, reactive } from 'vue';
 import SectionCard from '@/components/cas/SectionCard.vue';
+import { useAuthPermissions } from '@/composables/useAuthPermissions';
 import { useCasApi } from '@/composables/useCasApi';
+import { useStateNotifications } from '@/composables/useStateNotifications';
+import { formatPhDateOnly } from '@/lib/utils';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type {
     AccountRow,
@@ -12,6 +15,7 @@ import type {
 } from '@/types';
 
 const api = useCasApi();
+const { can } = useAuthPermissions();
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'CAS Dashboard', href: '/cas' },
@@ -21,10 +25,20 @@ const breadcrumbs: BreadcrumbItem[] = [
 const state = reactive({
     accounts: [] as AccountRow[],
     entries: [] as Array<any>,
+    exportFromDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+        .toISOString()
+        .slice(0, 10),
+    exportToDate: new Date().toISOString().slice(0, 10),
+    currentPage: 1,
+    lastPage: 1,
+    perPage: 15,
+    total: 0,
     loading: false,
     error: '',
     success: '',
 });
+
+useStateNotifications(state);
 
 const form = reactive<JournalPayload>({
     branch_id: 1,
@@ -48,17 +62,21 @@ function removeLine(index: number) {
     }
 }
 
-async function loadData() {
+async function loadData(page = 1) {
     state.loading = true;
 
     try {
         const [accounts, entries] = await Promise.all([
             api.get<PaginatedResponse<AccountRow>>('/api/accounts?per_page=200'),
-            api.get<PaginatedResponse<any>>('/api/journal-entries?per_page=100'),
+            api.get<PaginatedResponse<any>>(`/api/journal-entries?per_page=${state.perPage}&page=${page}`),
         ]);
 
         state.accounts = accounts.data;
         state.entries = entries.data;
+        state.currentPage = entries.current_page;
+        state.lastPage = entries.last_page;
+        state.perPage = entries.per_page;
+        state.total = entries.total;
     } catch (error) {
         state.error =
             error instanceof Error ? error.message : 'Failed to load journals.';
@@ -67,7 +85,20 @@ async function loadData() {
     }
 }
 
+function exportJournals() {
+    const query = new URLSearchParams({
+        from_date: state.exportFromDate,
+        to_date: state.exportToDate,
+    });
+
+    window.open(`/api/exports/journals?${query.toString()}`, '_blank');
+}
+
 async function createEntry() {
+    if (!can('journals.create')) {
+        return;
+    }
+
     state.error = '';
     state.success = '';
 
@@ -187,12 +218,35 @@ onMounted(loadData);
 
                     <div class="flex gap-2">
                         <button type="button" class="rounded border px-3 py-2 text-sm" @click="addLine">Add Line</button>
-                        <button type="submit" class="rounded bg-primary px-3 py-2 text-sm font-medium text-primary-foreground">Save Draft</button>
+                        <button v-if="can('journals.create')" type="submit" class="rounded bg-primary px-3 py-2 text-sm font-medium text-primary-foreground">Save Draft</button>
                     </div>
                 </form>
             </SectionCard>
 
             <SectionCard title="Journal Entries">
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <p class="text-sm text-muted-foreground">Total: {{ state.total }}</p>
+                    <div class="flex items-center gap-2">
+                        <input
+                            v-model="state.exportFromDate"
+                            type="date"
+                            class="rounded border px-2 py-2 text-sm"
+                        />
+                        <input
+                            v-model="state.exportToDate"
+                            type="date"
+                            class="rounded border px-2 py-2 text-sm"
+                        />
+                        <button
+                            v-if="can('journals.view')"
+                            type="button"
+                            class="rounded border px-3 py-2 text-sm"
+                            @click="exportJournals"
+                        >
+                            Export Excel
+                        </button>
+                    </div>
+                </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full text-sm">
                         <thead>
@@ -209,7 +263,7 @@ onMounted(loadData);
                         <tbody>
                             <tr v-for="entry in state.entries" :key="entry.id" class="border-b">
                                 <td class="px-2 py-2">{{ entry.entry_number }}</td>
-                                <td class="px-2 py-2">{{ entry.entry_date }}</td>
+                                <td class="px-2 py-2">{{ formatPhDateOnly(entry.entry_date) }}</td>
                                 <td class="px-2 py-2">{{ entry.journal_type }}</td>
                                 <td class="px-2 py-2 uppercase">{{ entry.status }}</td>
                                 <td class="px-2 py-2">{{ entry.total_debit }}</td>
@@ -236,11 +290,30 @@ onMounted(loadData);
                         </tbody>
                     </table>
                 </div>
+                <div class="mt-3 flex items-center gap-2">
+                    <button
+                        type="button"
+                        class="rounded border px-3 py-1 text-sm"
+                        :disabled="state.currentPage <= 1"
+                        @click="loadData(state.currentPage - 1)"
+                    >
+                        Previous
+                    </button>
+                    <span class="text-sm text-muted-foreground">
+                        Page {{ state.currentPage }} of {{ state.lastPage }}
+                    </span>
+                    <button
+                        type="button"
+                        class="rounded border px-3 py-1 text-sm"
+                        :disabled="state.currentPage >= state.lastPage"
+                        @click="loadData(state.currentPage + 1)"
+                    >
+                        Next
+                    </button>
+                </div>
             </SectionCard>
 
             <p v-if="state.loading" class="text-sm text-muted-foreground">Loading...</p>
-            <p v-if="state.error" class="text-sm text-destructive">{{ state.error }}</p>
-            <p v-if="state.success" class="text-sm text-emerald-600">{{ state.success }}</p>
         </div>
     </AppLayout>
 </template>

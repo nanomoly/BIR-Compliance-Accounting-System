@@ -2,11 +2,14 @@
 import { Head } from '@inertiajs/vue3';
 import { onMounted, reactive } from 'vue';
 import SectionCard from '@/components/cas/SectionCard.vue';
+import { useAuthPermissions } from '@/composables/useAuthPermissions';
 import { useCasApi } from '@/composables/useCasApi';
+import { useStateNotifications } from '@/composables/useStateNotifications';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem } from '@/types';
 
 const api = useCasApi();
+const { can } = useAuthPermissions();
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'CAS Dashboard', href: '/cas' },
@@ -30,6 +33,8 @@ const state = reactive({
     error: '',
     success: '',
 });
+
+useStateNotifications(state);
 
 async function loadSystemInfo() {
     state.loading = true;
@@ -58,6 +63,10 @@ async function loadSystemInfo() {
 }
 
 async function saveCompanyProfile() {
+    if (!can('system_info.update')) {
+        return;
+    }
+
     state.saving = true;
     state.error = '';
     state.success = '';
@@ -128,6 +137,7 @@ onMounted(loadSystemInfo);
                     />
 
                     <button
+                        v-if="can('system_info.update')"
                         type="submit"
                         class="w-fit rounded bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
                         :disabled="state.saving"
@@ -138,8 +148,6 @@ onMounted(loadSystemInfo);
             </SectionCard>
 
             <p v-if="state.loading" class="text-sm text-muted-foreground">Loading system information...</p>
-            <p v-if="state.error" class="text-sm text-destructive">{{ state.error }}</p>
-            <p v-if="state.success" class="text-sm text-emerald-600">{{ state.success }}</p>
         </div>
     </AppLayout>
 </template>

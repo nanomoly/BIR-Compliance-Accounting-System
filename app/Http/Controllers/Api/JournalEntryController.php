@@ -63,7 +63,15 @@ class JournalEntryController extends Controller
     {
         $this->authorize('post', $journalEntry);
 
-        return response()->json($this->journalEntryService->post($journalEntry->load('lines'), (int) $request->user()->id));
+        $userId = (int) $request->user()->id;
+
+        if ((int) $journalEntry->created_by === $userId) {
+            return response()->json([
+                'message' => 'Maker-checker violation: you cannot post your own journal entry.',
+            ], 422);
+        }
+
+        return response()->json($this->journalEntryService->post($journalEntry->load('lines'), $userId));
     }
 
     public function reverse(JournalEntry $journalEntry, Request $request): JsonResponse
