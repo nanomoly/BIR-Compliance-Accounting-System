@@ -1,0 +1,8 @@
+artifact_name,source_path,period,owner,status,remarks
+Trial Balance PDF,,Monthly,Accounting,Pending,
+Trial Balance Excel,,Monthly,Accounting,Pending,
+Journal Book PDF,,Monthly,Accounting,Pending,
+General Ledger PDF,,Monthly,Accounting,Pending,
+UAT Result Sheet,docs/bir/templates/UAT_TEST_SCRIPT_TEMPLATE.md,N/A,QA,Pending,
+Backup Restore Evidence,,Quarterly,Infra,Pending,
+Sworn Statement,,N/A,Authorized Officer,Pending,
