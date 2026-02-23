@@ -50,3 +50,12 @@ export function formatPhDateTime(value: string | null | undefined): string {
         hour12: true,
     }).format(date);
 }
+
+const amountFormatter = new Intl.NumberFormat('en-PH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+});
+
+export function formatAmount(value: number | null | undefined): string {
+    return amountFormatter.format(Number(value ?? 0));
+}

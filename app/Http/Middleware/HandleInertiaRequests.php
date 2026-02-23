@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\CompanyProfile;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -35,9 +36,12 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $company = CompanyProfile::query()->first();
+
         return [
             ...parent::share($request),
             'name' => config('app.name'),
+            'companyName' => $company?->name ?? config('app.name'),
             'auth' => [
                 'user' => $request->user(),
                 'permissions' => $request->user()?->getAllPermissions()->pluck('name')->values()->all() ?? [],

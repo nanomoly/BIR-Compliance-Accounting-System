@@ -6,7 +6,7 @@ import { useAuthPermissions } from '@/composables/useAuthPermissions';
 import { useCasApi } from '@/composables/useCasApi';
 import { useQueryTabSync } from '@/composables/useQueryTabSync';
 import { useStateNotifications } from '@/composables/useStateNotifications';
-import { formatPhDateOnly } from '@/lib/utils';
+import { formatAmount, formatPhDateOnly } from '@/lib/utils';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem } from '@/types';
 
@@ -325,9 +325,15 @@ onMounted(async () => {
                 <SectionCard title="Inventory List">
                     <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
                         <p class="text-sm text-muted-foreground">Total: {{ state.total }}</p>
-                        <div class="flex items-center gap-2">
-                            <input v-model="state.exportFromDate" type="date" class="rounded border px-2 py-2 text-sm" />
-                            <input v-model="state.exportToDate" type="date" class="rounded border px-2 py-2 text-sm" />
+                        <div class="flex items-end gap-2">
+                            <div class="flex flex-col gap-1">
+                                <label class="text-xs font-medium">From</label>
+                                <input v-model="state.exportFromDate" type="date" class="rounded border px-2 py-2 text-sm" />
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <label class="text-xs font-medium">To</label>
+                                <input v-model="state.exportToDate" type="date" class="rounded border px-2 py-2 text-sm" />
+                            </div>
                             <button v-if="can('inventory.view')" type="button" class="rounded border px-3 py-2 text-sm" @click="exportInventory">Export Excel</button>
                         </div>
                     </div>
@@ -432,9 +438,9 @@ onMounted(async () => {
                                 <tr v-for="movement in state.movements" :key="movement.id" class="border-b">
                                     <td class="px-2 py-2">{{ formatPhDateOnly(movement.movement_date) }}</td>
                                     <td class="px-2 py-2">{{ movement.inventory_item?.sku }} - {{ movement.inventory_item?.name }}</td>
-                                    <td class="px-2 py-2">{{ movement.movement_type }}</td>
+                                    <td class="px-2 py-2 uppercase">{{ movement.movement_type }}</td>
                                     <td class="px-2 py-2">{{ movement.quantity }}</td>
-                                    <td class="px-2 py-2">{{ movement.unit_cost ?? '-' }}</td>
+                                    <td class="px-2 py-2">{{ movement.unit_cost != null ? formatAmount(movement.unit_cost) : '-' }}</td>
                                     <td class="px-2 py-2">{{ movement.remarks ?? '-' }}</td>
                                 </tr>
                             </tbody>

@@ -5,7 +5,7 @@ import SectionCard from '@/components/cas/SectionCard.vue';
 import { useAuthPermissions } from '@/composables/useAuthPermissions';
 import { useCasApi } from '@/composables/useCasApi';
 import { useStateNotifications } from '@/composables/useStateNotifications';
-import { formatPhDateOnly } from '@/lib/utils';
+import { formatAmount, formatPhDateOnly } from '@/lib/utils';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem } from '@/types';
 
@@ -48,6 +48,8 @@ const state = reactive({
     orders: [] as SalesOrder[],
     customers: [] as SimpleRef[],
     branches: [] as SimpleRef[],
+    exportFromDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10),
+    exportToDate: new Date().toISOString().slice(0, 10),
     currentPage: 1,
     lastPage: 1,
     perPage: 15,
@@ -60,6 +62,15 @@ const state = reactive({
 });
 
 useStateNotifications(state);
+
+function exportSales() {
+    const query = new URLSearchParams({
+        from_date: state.exportFromDate,
+        to_date: state.exportToDate,
+    });
+
+    window.open(`/api/exports/sales-orders?${query.toString()}`, '_blank');
+}
 
 const form = reactive({
     branch_id: 0,
@@ -291,7 +302,7 @@ onMounted(async () => {
                                     <td class="px-2 py-2">
                                         <input v-model.number="line.unit_price" required type="number" min="0" step="0.01" class="w-full rounded border px-2 py-1" />
                                     </td>
-                                    <td class="px-2 py-2">{{ (Number(line.quantity || 0) * Number(line.unit_price || 0)).toFixed(2) }}</td>
+                                    <td class="px-2 py-2">{{ formatAmount(Number(line.quantity || 0) * Number(line.unit_price || 0)) }}</td>
                                     <td class="px-2 py-2">
                                         <button type="button" class="rounded border px-2 py-1" @click="removeLine(index)">Remove</button>
                                     </td>
@@ -304,8 +315,8 @@ onMounted(async () => {
                         <button type="button" class="rounded border px-3 py-2 text-sm" @click="addLine">Add Line</button>
                         <input v-model.number="form.vat_amount" type="number" min="0" step="0.01" placeholder="VAT amount" class="rounded border px-3 py-2 text-sm" />
                         <input v-model="form.remarks" placeholder="Remarks (optional)" class="min-w-[220px] rounded border px-3 py-2 text-sm" />
-                        <span class="text-sm text-muted-foreground">Subtotal: {{ subtotal.toFixed(2) }}</span>
-                        <span class="text-sm text-muted-foreground">Total: {{ totalAmount.toFixed(2) }}</span>
+                        <span class="text-sm text-muted-foreground">Subtotal: {{ formatAmount(subtotal) }}</span>
+                        <span class="text-sm text-muted-foreground">Total: {{ formatAmount(totalAmount) }}</span>
                         <button v-if="can('sales.create')" type="submit" class="rounded bg-primary px-3 py-2 text-sm font-medium text-primary-foreground" :disabled="state.saving">
                             {{ state.saving ? 'Saving...' : 'Create Sales Order' }}
                         </button>
@@ -314,7 +325,20 @@ onMounted(async () => {
             </SectionCard>
 
             <SectionCard title="Sales Orders">
-                <p class="mb-3 text-sm text-muted-foreground">Total: {{ state.total }}</p>
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <p class="text-sm text-muted-foreground">Total: {{ state.total }}</p>
+                    <div class="flex items-end gap-2">
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-medium">From</label>
+                            <input v-model="state.exportFromDate" type="date" class="rounded border px-2 py-2 text-sm" />
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-medium">To</label>
+                            <input v-model="state.exportToDate" type="date" class="rounded border px-2 py-2 text-sm" />
+                        </div>
+                        <button v-if="can('sales.view')" type="button" class="rounded border px-3 py-2 text-sm" @click="exportSales">Export Excel</button>
+                    </div>
+                </div>
 
                 <div class="overflow-x-auto">
                     <table class="min-w-full text-sm">
@@ -336,8 +360,8 @@ onMounted(async () => {
                                 <td class="px-2 py-2">{{ formatPhDateOnly(order.order_date) }}</td>
                                 <td class="px-2 py-2">{{ order.customer?.code }} - {{ order.customer?.name }}</td>
                                 <td class="px-2 py-2">{{ order.branch?.code }} - {{ order.branch?.name }}</td>
-                                <td class="px-2 py-2">{{ order.status }}</td>
-                                <td class="px-2 py-2">{{ Number(order.total_amount).toFixed(2) }}</td>
+                                <td class="px-2 py-2 uppercase">{{ order.status }}</td>
+                                <td class="px-2 py-2">{{ formatAmount(order.total_amount) }}</td>
                                 <td class="px-2 py-2">{{ order.invoice?.invoice_number ?? '-' }}</td>
                                 <td class="px-2 py-2">
                                     <div class="flex flex-wrap gap-2">

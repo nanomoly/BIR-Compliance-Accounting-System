@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { useAuthPermissions } from '@/composables/useAuthPermissions';
 import { useCasApi } from '@/composables/useCasApi';
 import { useStateNotifications } from '@/composables/useStateNotifications';
-import { formatPhDateOnly } from '@/lib/utils';
+import { formatAmount, formatPhDateOnly } from '@/lib/utils';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem } from '@/types';
 
@@ -89,13 +89,6 @@ function lineAmount(index: number): number {
     }
 
     return Number(line.quantity) * Number(line.unit_price);
-}
-
-function formatAmount(value: number): string {
-    return new Intl.NumberFormat('en-PH', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    }).format(value || 0);
 }
 
 function addLine() {
@@ -390,17 +383,23 @@ onMounted(loadInvoices);
             <SectionCard title="E-Invoices">
                 <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <p class="text-sm text-muted-foreground">Total: {{ state.total }}</p>
-                    <div class="flex items-center gap-2">
-                        <input
-                            v-model="state.exportFromDate"
-                            type="date"
-                            class="rounded border px-2 py-2 text-sm"
-                        />
-                        <input
-                            v-model="state.exportToDate"
-                            type="date"
-                            class="rounded border px-2 py-2 text-sm"
-                        />
+                    <div class="flex items-end gap-2">
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-medium">From</label>
+                            <input
+                                v-model="state.exportFromDate"
+                                type="date"
+                                class="rounded border px-2 py-2 text-sm"
+                            />
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-medium">To</label>
+                            <input
+                                v-model="state.exportToDate"
+                                type="date"
+                                class="rounded border px-2 py-2 text-sm"
+                            />
+                        </div>
                         <Button
                             v-if="can('e_invoices.view')"
                             type="button"

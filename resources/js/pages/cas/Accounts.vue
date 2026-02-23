@@ -126,45 +126,68 @@ onMounted(loadAccounts);
                 description="BIR-compliant code format: digits with optional separators (- or .)."
             >
                 <form class="grid gap-3 md:grid-cols-3" @submit.prevent="createAccount">
-                    <input v-model="form.code" required placeholder="Code" class="rounded border px-3 py-2 text-sm" />
-                    <input v-model="form.name" required placeholder="Name" class="rounded border px-3 py-2 text-sm" />
-                    <select v-model="form.type" class="rounded border px-3 py-2 text-sm">
-                        <option value="asset">Asset</option>
-                        <option value="liability">Liability</option>
-                        <option value="equity">Equity</option>
-                        <option value="revenue">Revenue</option>
-                        <option value="expense">Expense</option>
-                    </select>
-                    <select v-model="form.normal_balance" class="rounded border px-3 py-2 text-sm">
-                        <option value="debit">Debit</option>
-                        <option value="credit">Credit</option>
-                    </select>
-                    <select v-model="form.parent_id" class="rounded border px-3 py-2 text-sm">
-                        <option :value="null">No Parent</option>
-                        <option v-for="account in state.accounts" :key="account.id" :value="account.id">
-                            {{ account.code }} - {{ account.name }}
-                        </option>
-                    </select>
-                    <button v-if="can('accounts.create')" type="submit" class="rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
-                        Create
-                    </button>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-sm font-medium">Code <span class="text-destructive">*</span></label>
+                        <input v-model="form.code" required placeholder="Code" class="rounded border px-3 py-2 text-sm" />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-sm font-medium">Name <span class="text-destructive">*</span></label>
+                        <input v-model="form.name" required placeholder="Name" class="rounded border px-3 py-2 text-sm" />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-sm font-medium">Type</label>
+                        <select v-model="form.type" class="rounded border px-3 py-2 text-sm">
+                            <option value="asset">Asset</option>
+                            <option value="liability">Liability</option>
+                            <option value="equity">Equity</option>
+                            <option value="revenue">Revenue</option>
+                            <option value="expense">Expense</option>
+                        </select>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-sm font-medium">Normal Balance</label>
+                        <select v-model="form.normal_balance" class="rounded border px-3 py-2 text-sm">
+                            <option value="debit">Debit</option>
+                            <option value="credit">Credit</option>
+                        </select>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-sm font-medium">Parent Account</label>
+                        <select v-model="form.parent_id" class="rounded border px-3 py-2 text-sm">
+                            <option :value="null">No Parent</option>
+                            <option v-for="account in state.accounts" :key="account.id" :value="account.id">
+                                {{ account.code }} - {{ account.name }}
+                            </option>
+                        </select>
+                    </div>
+                    <div class="flex items-end">
+                        <button v-if="can('accounts.create')" type="submit" class="rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
+                            Create
+                        </button>
+                    </div>
                 </form>
             </SectionCard>
 
             <SectionCard title="Accounts List">
                 <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <p class="text-sm text-muted-foreground">Total: {{ state.total }}</p>
-                    <div class="flex items-center gap-2">
-                        <input
-                            v-model="state.exportFromDate"
-                            type="date"
-                            class="rounded border px-2 py-2 text-sm"
-                        />
-                        <input
-                            v-model="state.exportToDate"
-                            type="date"
-                            class="rounded border px-2 py-2 text-sm"
-                        />
+                    <div class="flex items-end gap-2">
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-medium">From</label>
+                            <input
+                                v-model="state.exportFromDate"
+                                type="date"
+                                class="rounded border px-2 py-2 text-sm"
+                            />
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-medium">To</label>
+                            <input
+                                v-model="state.exportToDate"
+                                type="date"
+                                class="rounded border px-2 py-2 text-sm"
+                            />
+                        </div>
                         <button
                             v-if="can('accounts.view')"
                             type="button"

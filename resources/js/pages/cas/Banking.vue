@@ -6,7 +6,7 @@ import { useAuthPermissions } from '@/composables/useAuthPermissions';
 import { useCasApi } from '@/composables/useCasApi';
 import { useQueryTabSync } from '@/composables/useQueryTabSync';
 import { useStateNotifications } from '@/composables/useStateNotifications';
-import { formatPhDateOnly } from '@/lib/utils';
+import { formatAmount, formatPhDateOnly } from '@/lib/utils';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem } from '@/types';
 
@@ -655,8 +655,8 @@ onMounted(async () => {
                                     <td class="px-2 py-2">{{ account.bank_name }}</td>
                                     <td class="px-2 py-2">{{ account.account_name }}</td>
                                     <td class="px-2 py-2">{{ account.account_number }}</td>
-                                    <td class="px-2 py-2">{{ account.account_type }}</td>
-                                    <td class="px-2 py-2">{{ account.current_balance }}</td>
+                                    <td class="px-2 py-2 uppercase">{{ account.account_type }}</td>
+                                    <td class="px-2 py-2">{{ formatAmount(account.current_balance) }}</td>
                                     <td class="px-2 py-2">{{ account.is_active ? 'Active' : 'Inactive' }}</td>
                                     <td class="px-2 py-2"><div class="flex gap-2"><button type="button" class="rounded border px-2 py-1" @click="startEdit(account)">Edit</button><button type="button" class="rounded border px-2 py-1" :disabled="state.deleting" @click="deleteAccount(account.id)">Delete</button></div></td>
                                 </template>
@@ -711,7 +711,7 @@ onMounted(async () => {
                                 <td class="px-2 py-2">{{ formatPhDateOnly(transaction.transaction_date) }}</td>
                                 <td class="px-2 py-2">{{ transaction.bank_account?.bank_name ?? '-' }}</td>
                                 <td class="px-2 py-2 uppercase">{{ transaction.transaction_type }}</td>
-                                <td class="px-2 py-2">{{ transaction.amount }}</td>
+                                <td class="px-2 py-2">{{ formatAmount(transaction.amount) }}</td>
                                 <td class="px-2 py-2">{{ transaction.reference_no ?? '-' }}</td>
                                 <td class="px-2 py-2">{{ transaction.description ?? '-' }}</td>
                                 <td class="px-2 py-2"><button v-if="can('banking.delete')" type="button" class="rounded border px-2 py-1" :disabled="state.deleting" @click="deleteTransaction(transaction.id)">Delete</button></td>
@@ -775,7 +775,7 @@ onMounted(async () => {
                                     <span class="uppercase">{{ reco.status }}</span>
                                 </div>
                                 <div class="text-xs text-muted-foreground">
-                                    Diff: {{ Number(reco.difference).toFixed(2) }}
+                                    Diff: {{ formatAmount(reco.difference) }}
                                 </div>
                             </button>
                         </div>
@@ -787,14 +787,14 @@ onMounted(async () => {
                             <select v-model.number="state.selectedLineId" class="rounded border px-3 py-2 text-sm">
                                 <option :value="0" disabled>Select unmatched statement line</option>
                                 <option v-for="line in state.selectedReconciliationLines.filter((item) => !item.is_matched)" :key="line.id" :value="line.id">
-                                    {{ formatPhDateOnly(line.transaction_date) }} • {{ line.transaction_type }} • {{ Number(line.amount).toFixed(2) }} • {{ line.reference_no ?? '-' }}
+                                    {{ formatPhDateOnly(line.transaction_date) }} • {{ line.transaction_type }} • {{ formatAmount(line.amount) }} • {{ line.reference_no ?? '-' }}
                                 </option>
                             </select>
 
                             <select v-model.number="state.selectedTransactionId" class="rounded border px-3 py-2 text-sm">
                                 <option :value="0" disabled>Select bank transaction</option>
                                 <option v-for="txn in state.availableTransactions" :key="txn.id" :value="txn.id">
-                                    {{ formatPhDateOnly(txn.transaction_date) }} • {{ txn.transaction_type }} • {{ Number(txn.amount).toFixed(2) }} • {{ txn.reference_no ?? '-' }}
+                                    {{ formatPhDateOnly(txn.transaction_date) }} • {{ txn.transaction_type }} • {{ formatAmount(txn.amount) }} • {{ txn.reference_no ?? '-' }}
                                 </option>
                             </select>
 
@@ -821,7 +821,7 @@ onMounted(async () => {
                                         class="w-full rounded border px-2 py-1 text-left"
                                         @click="state.selectedTransactionId = item.id"
                                     >
-                                        Score {{ item.score }} • {{ formatPhDateOnly(item.transaction_date) }} • {{ item.transaction_type }} • {{ Number(item.amount).toFixed(2) }} • {{ item.reference_no ?? '-' }}
+                                        Score {{ item.score }} • {{ formatPhDateOnly(item.transaction_date) }} • {{ item.transaction_type }} • {{ formatAmount(item.amount) }} • {{ item.reference_no ?? '-' }}
                                     </button>
                                 </div>
                             </div>
@@ -877,8 +877,8 @@ onMounted(async () => {
                                 <tbody>
                                     <tr v-for="line in state.selectedReconciliationLines" :key="`line-${line.id}`" class="border-b">
                                         <td class="px-2 py-1">{{ formatPhDateOnly(line.transaction_date) }}</td>
-                                        <td class="px-2 py-1">{{ line.transaction_type }}</td>
-                                        <td class="px-2 py-1">{{ Number(line.amount).toFixed(2) }}</td>
+                                        <td class="px-2 py-1 uppercase">{{ line.transaction_type }}</td>
+                                        <td class="px-2 py-1">{{ formatAmount(line.amount) }}</td>
                                         <td class="px-2 py-1">{{ line.unmatched_reason ?? '-' }}</td>
                                     </tr>
                                 </tbody>
@@ -892,8 +892,8 @@ onMounted(async () => {
                             <div v-for="item in state.selectedReconciliationMatches" :key="`match-${item.id}`" class="rounded border p-2 text-sm">
                                 <div class="flex items-center justify-between gap-2">
                                     <span>
-                                        {{ formatPhDateOnly(item.statement_line?.transaction_date) }} {{ item.statement_line?.transaction_type }} {{ Number(item.matched_amount).toFixed(2) }}
-                                        ↔ {{ formatPhDateOnly(item.bank_transaction?.transaction_date) }} {{ item.bank_transaction?.transaction_type }} {{ Number(item.bank_transaction?.amount ?? 0).toFixed(2) }}
+                                        {{ formatPhDateOnly(item.statement_line?.transaction_date) }} {{ item.statement_line?.transaction_type }} {{ formatAmount(item.matched_amount) }}
+                                        ↔ {{ formatPhDateOnly(item.bank_transaction?.transaction_date) }} {{ item.bank_transaction?.transaction_type }} {{ formatAmount(item.bank_transaction?.amount) }}
                                     </span>
                                     <button v-if="can('banking.update')" type="button" class="rounded border px-2 py-1" :disabled="state.saving" @click="unmatchLine(item.id)">
                                         Unmatch

@@ -237,79 +237,108 @@ onMounted(loadData);
                 description="Create and maintain customer master records."
             >
                 <form class="grid gap-3 md:grid-cols-3" @submit.prevent="createCustomer">
-                    <input
-                        v-model="form.code"
-                        required
-                        placeholder="Code"
-                        class="rounded border px-3 py-2 text-sm"
-                    />
-                    <input
-                        v-model="form.name"
-                        required
-                        placeholder="Customer name"
-                        class="rounded border px-3 py-2 text-sm"
-                    />
-                    <select
-                        v-model.number="form.branch_id"
-                        class="rounded border px-3 py-2 text-sm"
-                    >
-                        <option :value="null">No branch</option>
-                        <option
-                            v-for="branch in state.branches"
-                            :key="branch.id"
-                            :value="branch.id"
+                    <div class="flex flex-col gap-1">
+                        <label class="text-sm font-medium">Code <span class="text-destructive">*</span></label>
+                        <input
+                            v-model="form.code"
+                            required
+                            placeholder="Code"
+                            class="rounded border px-3 py-2 text-sm"
+                        />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-sm font-medium">Customer Name <span class="text-destructive">*</span></label>
+                        <input
+                            v-model="form.name"
+                            required
+                            placeholder="Customer name"
+                            class="rounded border px-3 py-2 text-sm"
+                        />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-sm font-medium">Branch</label>
+                        <select
+                            v-model.number="form.branch_id"
+                            class="rounded border px-3 py-2 text-sm"
                         >
-                            {{ branch.code }} - {{ branch.name }}
-                        </option>
-                    </select>
+                            <option :value="null">No branch</option>
+                            <option
+                                v-for="branch in state.branches"
+                                :key="branch.id"
+                                :value="branch.id"
+                            >
+                                {{ branch.code }} - {{ branch.name }}
+                            </option>
+                        </select>
+                    </div>
 
-                    <input
-                        v-model="form.tin"
-                        placeholder="TIN"
-                        class="rounded border px-3 py-2 text-sm"
-                    />
-                    <input
-                        v-model="form.email"
-                        type="email"
-                        placeholder="Email"
-                        class="rounded border px-3 py-2 text-sm"
-                    />
-                    <input
-                        v-model="form.phone"
-                        placeholder="Phone"
-                        class="rounded border px-3 py-2 text-sm"
-                    />
+                    <div class="flex flex-col gap-1">
+                        <label class="text-sm font-medium">TIN</label>
+                        <input
+                            v-model="form.tin"
+                            placeholder="TIN"
+                            class="rounded border px-3 py-2 text-sm"
+                        />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-sm font-medium">Email</label>
+                        <input
+                            v-model="form.email"
+                            type="email"
+                            placeholder="Email"
+                            class="rounded border px-3 py-2 text-sm"
+                        />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-sm font-medium">Phone</label>
+                        <input
+                            v-model="form.phone"
+                            placeholder="Phone"
+                            class="rounded border px-3 py-2 text-sm"
+                        />
+                    </div>
 
-                    <input
-                        v-model="form.address"
-                        placeholder="Address"
-                        class="rounded border px-3 py-2 text-sm md:col-span-2"
-                    />
-                    <button
-                        v-if="can('customers.create')"
-                        type="submit"
-                        class="rounded bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
-                        :disabled="state.saving"
-                    >
-                        {{ state.saving ? 'Saving...' : 'Create Customer' }}
-                    </button>
+                    <div class="flex flex-col gap-1 md:col-span-2">
+                        <label class="text-sm font-medium">Address</label>
+                        <input
+                            v-model="form.address"
+                            placeholder="Address"
+                            class="rounded border px-3 py-2 text-sm"
+                        />
+                    </div>
+                    <div class="flex items-end">
+                        <button
+                            v-if="can('customers.create')"
+                            type="submit"
+                            class="rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+                            :disabled="state.saving"
+                        >
+                            {{ state.saving ? 'Saving...' : 'Create Customer' }}
+                        </button>
+                    </div>
                 </form>
             </SectionCard>
 
             <SectionCard title="Customer List">
                 <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <p class="text-sm text-muted-foreground">Total: {{ state.total }}</p>
-                    <div class="flex items-center gap-2">
-                        <input
-                            v-model="state.exportFromDate"
-                            type="date"
-                            class="rounded border px-2 py-2 text-sm"
-                        />
-                        <input
-                            v-model="state.exportToDate"
-                            type="date"
-                            class="rounded border px-2 py-2 text-sm"
-                        />
+                    <div class="flex items-end gap-2">
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-medium">From</label>
+                            <input
+                                v-model="state.exportFromDate"
+                                type="date"
+                                class="rounded border px-2 py-2 text-sm"
+                            />
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-medium">To</label>
+                            <input
+                                v-model="state.exportToDate"
+                                type="date"
+                                class="rounded border px-2 py-2 text-sm"
+                            />
+                        </div>
                         <button
                             v-if="can('customers.view')"
                             type="button"

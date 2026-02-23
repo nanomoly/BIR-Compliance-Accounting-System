@@ -6,7 +6,7 @@ import { useAuthPermissions } from '@/composables/useAuthPermissions';
 import { useCasApi } from '@/composables/useCasApi';
 import { useQueryTabSync } from '@/composables/useQueryTabSync';
 import { useStateNotifications } from '@/composables/useStateNotifications';
-import { formatPhDateOnly } from '@/lib/utils';
+import { formatAmount, formatPhDateOnly } from '@/lib/utils';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem } from '@/types';
 
@@ -259,13 +259,18 @@ onMounted(async () => {
                         <span>Monthly Rate</span>
                         <input v-model.number="form.monthly_rate" type="number" step="0.01" min="0" class="rounded border px-3 py-2 text-sm" />
                     </label>
-                    <label class="flex items-center gap-2 rounded border px-3 py-2 text-sm">
-                        <input v-model="form.is_active" type="checkbox" />
-                        Active
+                    <label class="grid gap-1 text-sm">
+                        <span>Active</span>
+                        <span class="flex items-center gap-2 rounded border px-3 py-2 text-sm">
+                            <input v-model="form.is_active" type="checkbox" />
+                            Yes
+                        </span>
                     </label>
-                    <button v-if="can('hr.create')" type="submit" class="rounded bg-primary px-3 py-2 text-sm font-medium text-primary-foreground" :disabled="state.saving">
-                        {{ state.saving ? 'Saving...' : 'Create Employee' }}
-                    </button>
+                    <div class="flex items-end">
+                        <button v-if="can('hr.create')" type="submit" class="rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground" :disabled="state.saving">
+                            {{ state.saving ? 'Saving...' : 'Create Employee' }}
+                        </button>
+                    </div>
                 </form>
             </SectionCard>
 
@@ -322,7 +327,7 @@ onMounted(async () => {
                                     <td class="px-2 py-2">{{ employee.position ?? '-' }}</td>
                                     <td class="px-2 py-2">{{ employee.department ?? '-' }}</td>
                                     <td class="px-2 py-2">{{ formatPhDateOnly(employee.hire_date) }}</td>
-                                    <td class="px-2 py-2">{{ employee.monthly_rate ?? '-' }}</td>
+                                    <td class="px-2 py-2">{{ employee.monthly_rate != null ? formatAmount(employee.monthly_rate) : '-' }}</td>
                                     <td class="px-2 py-2">{{ employee.is_active ? 'Active' : 'Inactive' }}</td>
                                     <td class="px-2 py-2">
                                         <div class="flex gap-2">

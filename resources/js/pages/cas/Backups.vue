@@ -126,17 +126,23 @@ onMounted(loadBackups);
             <SectionCard title="Backup History">
                 <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <p class="text-sm text-muted-foreground">Total: {{ state.total }}</p>
-                    <div class="flex items-center gap-2">
-                        <input
-                            v-model="state.exportFromDate"
-                            type="date"
-                            class="rounded border px-2 py-2 text-sm"
-                        />
-                        <input
-                            v-model="state.exportToDate"
-                            type="date"
-                            class="rounded border px-2 py-2 text-sm"
-                        />
+                    <div class="flex items-end gap-2">
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-medium">From</label>
+                            <input
+                                v-model="state.exportFromDate"
+                                type="date"
+                                class="rounded border px-2 py-2 text-sm"
+                            />
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-medium">To</label>
+                            <input
+                                v-model="state.exportToDate"
+                                type="date"
+                                class="rounded border px-2 py-2 text-sm"
+                            />
+                        </div>
                         <button
                             v-if="can('backups.view')"
                             type="button"

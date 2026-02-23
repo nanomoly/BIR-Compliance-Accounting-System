@@ -206,58 +206,81 @@ onMounted(loadData);
                 description="Create and maintain company branch records."
             >
                 <form class="grid gap-3 md:grid-cols-3" @submit.prevent="createBranch">
-                    <input
-                        v-model="form.code"
-                        required
-                        placeholder="Code"
-                        class="rounded border px-3 py-2 text-sm"
-                    />
-                    <input
-                        v-model="form.name"
-                        required
-                        placeholder="Branch name"
-                        class="rounded border px-3 py-2 text-sm"
-                    />
-                    <input
-                        v-model="form.tin"
-                        placeholder="TIN"
-                        class="rounded border px-3 py-2 text-sm"
-                    />
-                    <input
-                        v-model="form.address"
-                        required
-                        placeholder="Address"
-                        class="rounded border px-3 py-2 text-sm md:col-span-2"
-                    />
-                    <label class="flex items-center gap-2 rounded border px-3 py-2 text-sm">
-                        <input v-model="form.is_main" type="checkbox" />
-                        Main branch
-                    </label>
-                    <button
-                        v-if="can('branches.create')"
-                        type="submit"
-                        class="rounded bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
-                        :disabled="state.saving"
-                    >
-                        {{ state.saving ? 'Saving...' : 'Create Branch' }}
-                    </button>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-sm font-medium">Code <span class="text-destructive">*</span></label>
+                        <input
+                            v-model="form.code"
+                            required
+                            placeholder="Code"
+                            class="rounded border px-3 py-2 text-sm"
+                        />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-sm font-medium">Branch Name <span class="text-destructive">*</span></label>
+                        <input
+                            v-model="form.name"
+                            required
+                            placeholder="Branch name"
+                            class="rounded border px-3 py-2 text-sm"
+                        />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-sm font-medium">TIN</label>
+                        <input
+                            v-model="form.tin"
+                            placeholder="TIN"
+                            class="rounded border px-3 py-2 text-sm"
+                        />
+                    </div>
+                    <div class="flex flex-col gap-1 md:col-span-2">
+                        <label class="text-sm font-medium">Address <span class="text-destructive">*</span></label>
+                        <input
+                            v-model="form.address"
+                            required
+                            placeholder="Address"
+                            class="rounded border px-3 py-2 text-sm"
+                        />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-sm font-medium">Main Branch</label>
+                        <label class="flex items-center gap-2 rounded border px-3 py-2 text-sm">
+                            <input v-model="form.is_main" type="checkbox" />
+                            Yes
+                        </label>
+                    </div>
+                    <div class="flex items-end">
+                        <button
+                            v-if="can('branches.create')"
+                            type="submit"
+                            class="rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+                            :disabled="state.saving"
+                        >
+                            {{ state.saving ? 'Saving...' : 'Create Branch' }}
+                        </button>
+                    </div>
                 </form>
             </SectionCard>
 
             <SectionCard title="Branch List">
                 <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <p class="text-sm text-muted-foreground">Total: {{ state.total }}</p>
-                    <div class="flex items-center gap-2">
-                        <input
-                            v-model="state.exportFromDate"
-                            type="date"
-                            class="rounded border px-2 py-2 text-sm"
-                        />
-                        <input
-                            v-model="state.exportToDate"
-                            type="date"
-                            class="rounded border px-2 py-2 text-sm"
-                        />
+                    <div class="flex items-end gap-2">
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-medium">From</label>
+                            <input
+                                v-model="state.exportFromDate"
+                                type="date"
+                                class="rounded border px-2 py-2 text-sm"
+                            />
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-medium">To</label>
+                            <input
+                                v-model="state.exportToDate"
+                                type="date"
+                                class="rounded border px-2 py-2 text-sm"
+                            />
+                        </div>
                         <button
                             v-if="can('branches.view')"
                             type="button"

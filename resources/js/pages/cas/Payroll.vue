@@ -6,6 +6,7 @@ import { useAuthPermissions } from '@/composables/useAuthPermissions';
 import { useCasApi } from '@/composables/useCasApi';
 import { useQueryTabSync } from '@/composables/useQueryTabSync';
 import { useStateNotifications } from '@/composables/useStateNotifications';
+import { formatAmount } from '@/lib/utils';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem } from '@/types';
 
@@ -157,13 +158,6 @@ function formatPhDateOnly(value: string | null | undefined): string {
     }
 
     return `${year}-${month}-${day}`;
-}
-
-function formatAmount(value: number | null | undefined): string {
-    return new Intl.NumberFormat('en-PH', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    }).format(Number(value ?? 0));
 }
 
 function exportPayrollRuns() {
@@ -503,7 +497,7 @@ onMounted(async () => {
                                     </button>
                                 </td>
                                 <td class="px-2 py-2">{{ run.period?.name ?? '-' }}</td>
-                                <td class="px-2 py-2">{{ run.status }}</td>
+                                <td class="px-2 py-2 uppercase">{{ run.status }}</td>
                                 <td class="px-2 py-2">{{ formatAmount(run.gross_total) }}</td>
                                 <td class="px-2 py-2">{{ formatAmount(run.deduction_total) }}</td>
                                 <td class="px-2 py-2">{{ formatAmount(run.net_total) }}</td>

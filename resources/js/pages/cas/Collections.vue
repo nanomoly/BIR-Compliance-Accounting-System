@@ -5,7 +5,7 @@ import SectionCard from '@/components/cas/SectionCard.vue';
 import { useAuthPermissions } from '@/composables/useAuthPermissions';
 import { useCasApi } from '@/composables/useCasApi';
 import { useStateNotifications } from '@/composables/useStateNotifications';
-import { formatPhDateOnly } from '@/lib/utils';
+import { formatAmount, formatPhDateOnly } from '@/lib/utils';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem } from '@/types';
 
@@ -172,7 +172,7 @@ onMounted(loadData);
                     <select v-model.number="form.invoice_id" required class="rounded border px-3 py-2 text-sm" @change="onInvoiceChange">
                         <option :value="0" disabled>Select invoice</option>
                         <option v-for="invoice in state.invoices" :key="invoice.id" :value="invoice.id">
-                            {{ invoice.invoice_number }} • {{ invoice.customer?.code }} - {{ invoice.customer?.name }} • Bal {{ Number(invoice.balance_due).toFixed(2) }}
+                            {{ invoice.invoice_number }} • {{ invoice.customer?.code }} - {{ invoice.customer?.name }} • Bal {{ formatAmount(invoice.balance_due) }}
                         </option>
                     </select>
                     <input v-model="form.receipt_date" required type="date" class="rounded border px-3 py-2 text-sm" />
@@ -192,16 +192,22 @@ onMounted(loadData);
 
                 <div v-if="selectedInvoice()" class="mt-3 rounded border p-3 text-sm">
                     <p>Selected Invoice: <span class="font-medium">{{ selectedInvoice()?.invoice_number }}</span></p>
-                    <p>Total: {{ Number(selectedInvoice()?.total_amount ?? 0).toFixed(2) }} | Paid: {{ Number(selectedInvoice()?.paid_amount ?? 0).toFixed(2) }} | Balance: {{ Number(selectedInvoice()?.balance_due ?? 0).toFixed(2) }}</p>
+                    <p>Total: {{ formatAmount(selectedInvoice()?.total_amount) }} | Paid: {{ formatAmount(selectedInvoice()?.paid_amount) }} | Balance: {{ formatAmount(selectedInvoice()?.balance_due) }}</p>
                 </div>
             </SectionCard>
 
             <SectionCard title="Receipts">
                 <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <p class="text-sm text-muted-foreground">Total: {{ state.total }}</p>
-                    <div class="flex items-center gap-2">
-                        <input v-model="state.exportFromDate" type="date" class="rounded border px-2 py-2 text-sm" />
-                        <input v-model="state.exportToDate" type="date" class="rounded border px-2 py-2 text-sm" />
+                    <div class="flex items-end gap-2">
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-medium">From</label>
+                            <input v-model="state.exportFromDate" type="date" class="rounded border px-2 py-2 text-sm" />
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-medium">To</label>
+                            <input v-model="state.exportToDate" type="date" class="rounded border px-2 py-2 text-sm" />
+                        </div>
                         <button v-if="can('collections.view')" type="button" class="rounded border px-3 py-2 text-sm" @click="exportCollections">Export Excel</button>
                     </div>
                 </div>
@@ -227,11 +233,11 @@ onMounted(loadData);
                                 <td class="px-2 py-2">{{ receipt.invoice?.invoice_number ?? '-' }}</td>
                                 <td class="px-2 py-2">{{ receipt.customer?.code }} - {{ receipt.customer?.name }}</td>
                                 <td class="px-2 py-2 uppercase">{{ receipt.payment_method }}</td>
-                                <td class="px-2 py-2">{{ Number(receipt.amount).toFixed(2) }}</td>
+                                <td class="px-2 py-2">{{ formatAmount(receipt.amount) }}</td>
                                 <td class="px-2 py-2">{{ receipt.reference_no ?? '-' }}</td>
                                 <td class="px-2 py-2">
                                     {{ receipt.journal_entry?.entry_number ?? '-' }}
-                                    <span v-if="receipt.journal_entry?.status" class="text-muted-foreground">({{ receipt.journal_entry.status }})</span>
+                                    <span v-if="receipt.journal_entry?.status" class="uppercase text-muted-foreground">({{ receipt.journal_entry.status }})</span>
                                 </td>
                             </tr>
                         </tbody>

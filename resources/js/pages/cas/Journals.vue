@@ -5,7 +5,7 @@ import SectionCard from '@/components/cas/SectionCard.vue';
 import { useAuthPermissions } from '@/composables/useAuthPermissions';
 import { useCasApi } from '@/composables/useCasApi';
 import { useStateNotifications } from '@/composables/useStateNotifications';
-import { formatPhDateOnly } from '@/lib/utils';
+import { formatAmount, formatPhDateOnly } from '@/lib/utils';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type {
     AccountRow,
@@ -226,17 +226,23 @@ onMounted(loadData);
             <SectionCard title="Journal Entries">
                 <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <p class="text-sm text-muted-foreground">Total: {{ state.total }}</p>
-                    <div class="flex items-center gap-2">
-                        <input
-                            v-model="state.exportFromDate"
-                            type="date"
-                            class="rounded border px-2 py-2 text-sm"
-                        />
-                        <input
-                            v-model="state.exportToDate"
-                            type="date"
-                            class="rounded border px-2 py-2 text-sm"
-                        />
+                    <div class="flex items-end gap-2">
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-medium">From</label>
+                            <input
+                                v-model="state.exportFromDate"
+                                type="date"
+                                class="rounded border px-2 py-2 text-sm"
+                            />
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-medium">To</label>
+                            <input
+                                v-model="state.exportToDate"
+                                type="date"
+                                class="rounded border px-2 py-2 text-sm"
+                            />
+                        </div>
                         <button
                             v-if="can('journals.view')"
                             type="button"
@@ -266,8 +272,8 @@ onMounted(loadData);
                                 <td class="px-2 py-2">{{ formatPhDateOnly(entry.entry_date) }}</td>
                                 <td class="px-2 py-2">{{ entry.journal_type }}</td>
                                 <td class="px-2 py-2 uppercase">{{ entry.status }}</td>
-                                <td class="px-2 py-2">{{ entry.total_debit }}</td>
-                                <td class="px-2 py-2">{{ entry.total_credit }}</td>
+                                <td class="px-2 py-2">{{ formatAmount(entry.total_debit) }}</td>
+                                <td class="px-2 py-2">{{ formatAmount(entry.total_credit) }}</td>
                                 <td class="px-2 py-2">
                                     <div class="flex gap-2">
                                         <button

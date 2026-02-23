@@ -4,6 +4,7 @@ import { reactive } from 'vue';
 import SectionCard from '@/components/cas/SectionCard.vue';
 import { useCasApi } from '@/composables/useCasApi';
 import { useStateNotifications } from '@/composables/useStateNotifications';
+import { formatAmount } from '@/lib/utils';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem } from '@/types';
 
@@ -19,6 +20,10 @@ const state = reactive({
         .toISOString()
         .slice(0, 10),
     to_date: new Date().toISOString().slice(0, 10),
+    exportFromDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+        .toISOString()
+        .slice(0, 10),
+    exportToDate: new Date().toISOString().slice(0, 10),
     ledgerType: 'accounts-receivable-ledger',
     rows: [] as Array<Record<string, unknown>>,
     referenceNumber: '',
@@ -59,6 +64,15 @@ async function loadLedger() {
         state.loading = false;
     }
 }
+
+function exportLedger() {
+    const query = new URLSearchParams({
+        from_date: state.exportFromDate,
+        to_date: state.exportToDate,
+    });
+
+    window.open(`/api/exports/ledgers?${query.toString()}`, '_blank');
+}
 </script>
 
 <template>
@@ -90,6 +104,19 @@ async function loadLedger() {
                 title="Ledger Result"
                 :description="`Ref#: ${state.referenceNumber || '-'} | Pages: ${state.pageCount}`"
             >
+                <div class="mb-3 flex flex-wrap items-center justify-end gap-2">
+                    <div class="flex items-end gap-2">
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-medium">From</label>
+                            <input v-model="state.exportFromDate" type="date" class="rounded border px-2 py-2 text-sm" />
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-medium">To</label>
+                            <input v-model="state.exportToDate" type="date" class="rounded border px-2 py-2 text-sm" />
+                        </div>
+                        <button type="button" class="rounded border px-3 py-2 text-sm" @click="exportLedger">Export Excel</button>
+                    </div>
+                </div>
                 <div class="overflow-x-auto">
                     <table v-if="state.rows.length > 0" class="min-w-full text-sm">
                         <thead>
@@ -102,7 +129,7 @@ async function loadLedger() {
                         <tbody>
                             <tr v-for="(row, index) in state.rows" :key="index" class="border-b">
                                 <td v-for="(value, key) in row" :key="`${index}-${String(key)}`" class="px-2 py-2">
-                                    {{ value }}
+                                    {{ typeof value === 'number' ? formatAmount(value) : value }}
                                 </td>
                             </tr>
                         </tbody>
